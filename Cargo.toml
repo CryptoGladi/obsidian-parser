@@ -1,0 +1,45 @@
+[package]
+name = "obsidian-parser"
+version = "0.1.0"
+edition = "2024"
+description = "Blazingly fast Obsidian vault parser with graph analysis"
+repository = "https://github.com/CryptoGladi/obsidian-parser"
+license = "MIT"
+keywords = ["obsidian", "parser", "knowledge-graph"]
+categories = ["parser-implementations", "data-structures"]
+
+[dependencies]
+itertools = "0.14"
+regex = "1.11"
+serde = { version = "1.0", features = ["derive"] }
+serde_yaml = "0.9"
+thiserror = "2.0"
+walkdir = "2.5"
+log = { version = "0.4", optional = true }
+petgraph = { version = "0.8", optional = true }
+rayon = { version = "1.10", optional = true }
+crossbeam = { version = "0.8", features = [
+    "crossbeam-channel",
+], optional = true }
+
+[dev-dependencies]
+criterion = "0.6.0"
+dialoguer = "0.11.0"
+env_logger = "0.11.8"
+rand = "0.9.1"
+tempfile = "3.20.0"
+
+[features]
+default = []
+logging = ["dep:log"]
+petgraph = ["dep:petgraph"]
+rayon = ["dep:rayon", "dep:crossbeam"]
+
+[[example]]
+name = "analyzer"
+required-features = ["rayon", "petgraph"]
+
+[[bench]]
+name = "benchmarks"
+required-features = ["rayon", "petgraph"]
+harness = false
