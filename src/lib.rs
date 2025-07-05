@@ -6,15 +6,15 @@
 //! - Extracting semantic relationships between notes
 //!
 //! ## Key Features
-//! 🛡️ **100% Safe Rust** - Strictly forbids unsafe code (`#![forbid(unsafe_code)]`)
-//! ⚡ **High Performance** - Parses 1000 notes in <3ms
-//! 🕸️ **Knowledge Graphs** - Built-in petgraph integration for graph analysis (requires `petgraph` feature)
+//! * 🛡️ **100% Safe Rust** - Strictly forbids unsafe code (`#![forbid(unsafe_code)]`)
+//! * ⚡ **High Performance** - Parses 1000 notes in <3ms
+//! * 🕸️ **Knowledge Graphs** - Built-in petgraph integration for graph analysis (requires `petgraph` feature)
 //!
 //! ## Usage
 //! Add to `Cargo.toml`:
 //! ```toml
 //! [dependencies]
-//! obsidian-parser = { version = "0.1", features = ["petgraph"] }
+//! obsidian-parser = { version = "0.1", features = ["petgraph", "rayon"] }
 //! ```
 //!
 //! ## Examples
@@ -93,7 +93,6 @@
 
 #![forbid(unsafe_code)]
 #![warn(clippy::pedantic)]
-#![allow(clippy::missing_errors_doc)]
 
 pub mod error;
 pub mod obfile;

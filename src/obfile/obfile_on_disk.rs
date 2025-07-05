@@ -59,7 +59,7 @@ impl<T: DeserializeOwned + Default + Clone + Send> ObFile<T> for ObFileOnDisk<T>
 
         match (valid_properties, &parts[..]) {
             (false, _) => raw_text,
-            (true, [_, _, content]) => (*content).to_string(),
+            (true, [_, _, content]) => (*content).trim().to_string(),
             _ => unimplemented!(),
         }
     }
@@ -84,11 +84,24 @@ impl<T: DeserializeOwned + Default + Clone + Send> ObFile<T> for ObFileOnDisk<T>
     }
 
     /// Creates instance from text (requires path!)
+    ///
+    /// Dont use this function. Use `from_file`
     fn from_string<P: AsRef<std::path::Path>>(
         _raw_text: &str,
         path: Option<P>,
     ) -> Result<Self, Error> {
         let path_buf = path.expect("Path is required").as_ref().to_path_buf();
+
+        Self::from_file(path_buf)
+    }
+
+    /// Creates instance from path
+    fn from_file<P: AsRef<std::path::Path>>(path: P) -> Result<Self, Error> {
+        let path_buf = path.as_ref().to_path_buf();
+
+        if !path_buf.is_file() {
+            return Err(Error::IsNotFile(path_buf));
+        }
 
         Ok(Self {
             path: path_buf,
@@ -100,16 +113,60 @@ impl<T: DeserializeOwned + Default + Clone + Send> ObFile<T> for ObFileOnDisk<T>
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::obfile::{
-        ObFileDefault,
-        tests::{from_file, impl_test_for_obfile},
-    };
+    use crate::obfile::ObFileDefault;
+    use crate::obfile::tests::{from_file, from_file_with_unicode, impl_test_for_obfile};
+    use std::io::Write;
+    use tempfile::NamedTempFile;
 
     impl_test_for_obfile!(impl_from_file, from_file, ObFileOnDisk);
+
+    impl_test_for_obfile!(
+        impl_from_file_with_unicode,
+        from_file_with_unicode,
+        ObFileOnDisk
+    );
 
     #[test]
     #[should_panic]
     fn use_from_string_without_path() {
         ObFileOnDisk::from_string_default("", None::<&str>).unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    fn use_from_file_with_path_not_file() {
+        let temp_dir = tempfile::tempdir().unwrap();
+
+        ObFileOnDisk::from_file_default(temp_dir.path()).unwrap();
+    }
+
+    #[test]
+    fn get_path() {
+        let test_file = NamedTempFile::new().unwrap();
+        let file = ObFileOnDisk::from_file_default(test_file.path()).unwrap();
+
+        assert_eq!(file.path().unwrap(), test_file.path());
+        assert_eq!(file.path, test_file.path());
+    }
+
+    #[test]
+    fn get_content() {
+        let test_data = "DATA";
+        let mut test_file = NamedTempFile::new().unwrap();
+        test_file.write_all(test_data.as_bytes()).unwrap();
+
+        let file = ObFileOnDisk::from_file_default(test_file.path()).unwrap();
+        assert_eq!(file.content(), test_data);
+    }
+
+    #[test]
+    fn get_properties() {
+        let test_data = "---\ntime: now\n---\nDATA";
+        let mut test_file = NamedTempFile::new().unwrap();
+        test_file.write_all(test_data.as_bytes()).unwrap();
+
+        let file = ObFileOnDisk::from_file_default(test_file.path()).unwrap();
+        assert_eq!(file.content(), "DATA");
+        assert_eq!(file.properties()["time"], "now");
     }
 }

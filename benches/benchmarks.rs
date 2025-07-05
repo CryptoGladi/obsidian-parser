@@ -1,5 +1,5 @@
 use criterion::{Criterion, criterion_group, criterion_main};
-use obsidian_parser::vault::Vault;
+use obsidian_parser::prelude::*;
 use rand::Rng;
 use serde::Deserialize;
 use std::hint::black_box;
@@ -54,50 +54,67 @@ fn generate_test_vault(num_files: usize, links_per_file: usize) -> TempDir {
     temp_dir
 }
 
-fn vault_open_benchmark(c: &mut Criterion) {
+fn vault_open_benchmark_on_disk(c: &mut Criterion) {
     let num_files = 1000;
     let links_per_file = 10;
 
     let temp_dir = generate_test_vault(num_files, links_per_file);
     let path = temp_dir.path();
 
-    c.bench_function("vault_open", |b| {
+    c.bench_function("vault_open_on_disk", |b| {
         b.iter(|| {
-            let vault: Vault<NoteProperties> = Vault::open(black_box(path)).unwrap();
+            let vault: Vault<NoteProperties, ObFileOnDisk<NoteProperties>> =
+                Vault::open(black_box(path)).unwrap();
             black_box(vault);
         })
     });
 }
 
-fn digraph_build_benchmark(c: &mut Criterion) {
+fn vault_open_benchmark_in_memory(c: &mut Criterion) {
     let num_files = 1000;
     let links_per_file = 10;
 
     let temp_dir = generate_test_vault(num_files, links_per_file);
     let path = temp_dir.path();
-    let vault: Vault<NoteProperties> = Vault::open(path).unwrap();
 
-    c.bench_function("digraph_build", |b| {
+    c.bench_function("vault_open_in_memory", |b| {
         b.iter(|| {
-            #[cfg(feature = "petgraph")]
+            let vault: Vault<NoteProperties, ObFileInMemory<NoteProperties>> =
+                Vault::open(black_box(path)).unwrap();
+            black_box(vault);
+        })
+    });
+}
+
+fn graph_build_benchmark_on_disk(c: &mut Criterion) {
+    let num_files = 1000;
+    let links_per_file = 10;
+
+    let temp_dir = generate_test_vault(num_files, links_per_file);
+    let path = temp_dir.path();
+    let vault: Vault<NoteProperties, ObFileOnDisk<NoteProperties>> =
+        Vault::open(black_box(path)).unwrap();
+
+    c.bench_function("graph_build_on_disk", |b| {
+        b.iter(|| {
             let graph = vault.get_digraph();
             black_box(graph);
         })
     });
 }
 
-fn ungraph_build_benchmark(c: &mut Criterion) {
+fn graph_build_benchmark_in_memory(c: &mut Criterion) {
     let num_files = 1000;
     let links_per_file = 10;
 
     let temp_dir = generate_test_vault(num_files, links_per_file);
     let path = temp_dir.path();
-    let vault = Vault::open_default(path).unwrap();
+    let vault: Vault<NoteProperties, ObFileInMemory<NoteProperties>> =
+        Vault::open(black_box(path)).unwrap();
 
-    c.bench_function("ungraph_build", |b| {
+    c.bench_function("graph_build_in_memory", |b| {
         b.iter(|| {
-            #[cfg(feature = "petgraph")]
-            let graph = vault.get_ungraph();
+            let graph = vault.get_digraph();
             black_box(graph);
         })
     });
@@ -108,7 +125,7 @@ criterion_group! {
     config = Criterion::default()
         .sample_size(20)
         .warm_up_time(std::time::Duration::from_secs(1));
-    targets = vault_open_benchmark, digraph_build_benchmark, ungraph_build_benchmark
+    targets = vault_open_benchmark_on_disk, vault_open_benchmark_in_memory, graph_build_benchmark_on_disk, graph_build_benchmark_in_memory
 }
 
 criterion_main!(benches);

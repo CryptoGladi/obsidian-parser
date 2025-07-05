@@ -18,7 +18,7 @@ pub enum Error {
     ///
     /// # Example
     /// Parsing a file with malformed frontmatter:
-    /// ```ignore
+    /// ```text
     /// ---
     /// incomplete yaml
     /// // Missing closing ---
@@ -30,7 +30,7 @@ pub enum Error {
     ///
     /// # Example
     /// Parsing invalid YAML syntax:
-    /// ```ignore
+    /// ```text
     /// ---
     /// key: @invalid_value
     /// ---
@@ -38,7 +38,7 @@ pub enum Error {
     #[error("YAML parsing error: {0}")]
     Yaml(#[from] serde_yaml::Error),
 
-    /// Expected a directory path but found a file
+    /// Expected a directory path
     ///
     /// # Example
     /// ```no_run
@@ -49,6 +49,18 @@ pub enum Error {
     /// ```
     #[error("Path: `{0}` is not a directory")]
     IsNotDir(PathBuf),
+
+    /// Expected a file path
+    ///
+    /// # Example
+    /// ```no_run
+    /// use obsidian_parser::prelude::*;
+    ///
+    /// // Will fail if passed a directory path
+    /// ObFileOnDisk::from_file_default("/home/test");
+    /// ```
+    #[error("Path: `{0}` is not a directory")]
+    IsNotFile(PathBuf),
 
     /// File contains invalid UTF-8 encoding
     ///

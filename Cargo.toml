@@ -37,9 +37,9 @@ rayon = ["dep:rayon", "dep:crossbeam"]
 
 [[example]]
 name = "analyzer"
-required-features = ["rayon", "petgraph"]
+required-features = ["petgraph"]
 
 [[bench]]
 name = "benchmarks"
-required-features = ["rayon", "petgraph"]
+required-features = ["petgraph"]
 harness = false

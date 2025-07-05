@@ -92,9 +92,17 @@ where
 /// Provides identical interface with explicitly named methods.
 pub trait ObFileDefault: ObFile<HashMap<String, serde_yaml::Value>> {
     /// Same as `ObFile::from_string` with default properties type
+    ///
+    /// # Errors
+    /// - `Error::InvalidFormat` for malformed frontmatter
+    /// - `Error::Yaml` for invalid YAML syntax
     fn from_string_default<P: AsRef<Path>>(text: &str, path: Option<P>) -> Result<Self, Error>;
 
     /// Same as `ObFile::from_file` with default properties type
+    ///
+    /// # Errors
+    /// - `Error::Io` for filesystem errors
+    /// - `Error::FromUtf8` for non-UTF8 content
     fn from_file_default<P: AsRef<Path>>(path: P) -> Result<Self, Error>;
 }
 
@@ -133,6 +141,7 @@ fn parse_obfile(raw_text: &str) -> (bool, Vec<&str>) {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
+    use crate::test_utils::init_test_logger;
     use serde::Deserialize;
     use std::io::Write;
     use tempfile::NamedTempFile;
@@ -152,6 +161,7 @@ Two test data";
     }
 
     pub(crate) fn from_string<T: ObFile>() -> Result<(), Error> {
+        init_test_logger();
         let file = T::from_string(TEST_DATA, None::<&str>)?;
         let properties = file.properties();
 
@@ -162,6 +172,7 @@ Two test data";
     }
 
     pub(crate) fn from_string_without_properties<T: ObFile>() -> Result<(), Error> {
+        init_test_logger();
         let test_data = "TEST_DATA";
         let file = T::from_string(test_data, None::<&str>)?;
         let properties = file.properties();
@@ -172,6 +183,7 @@ Two test data";
     }
 
     pub(crate) fn from_string_with_invalid_yaml<T: ObFile>() -> Result<(), Error> {
+        init_test_logger();
         let broken_data = "---\n\
     asdfv:--fs\n\
     sfsf\n\
@@ -186,6 +198,7 @@ Two test data";
     }
 
     pub(crate) fn from_string_invalid_format<T: ObFile>() -> Result<(), Error> {
+        init_test_logger();
         let broken_data = "---\n";
 
         assert!(matches!(
@@ -196,6 +209,7 @@ Two test data";
     }
 
     pub(crate) fn from_string_with_unicode<T: ObFile>() -> Result<(), Error> {
+        init_test_logger();
         let data = "---\ndata: 💩\n---\nSuper data 💩💩💩";
         let file = T::from_string(data, None::<&str>)?;
         let properties = file.properties();
@@ -205,7 +219,8 @@ Two test data";
         Ok(())
     }
 
-    pub(crate) fn space_with_properties<T: ObFile>() -> Result<(), Error> {
+    pub(crate) fn from_string_space_with_properties<T: ObFile>() -> Result<(), Error> {
+        init_test_logger();
         let data = "  ---\ntest: test-data\n---\n";
         let file = T::from_string(data, None::<&str>)?;
         let properties = file.properties();
@@ -216,6 +231,7 @@ Two test data";
     }
 
     pub(crate) fn from_file<T: ObFile>() -> Result<(), Error> {
+        init_test_logger();
         let mut temp_file = NamedTempFile::new().unwrap();
         temp_file.write_all(b"TEST_DATA").unwrap();
 
@@ -223,6 +239,79 @@ Two test data";
         assert_eq!(file.content(), "TEST_DATA");
         assert_eq!(file.path().unwrap(), temp_file.path());
         assert_eq!(file.properties().len(), 0);
+        Ok(())
+    }
+
+    pub(crate) fn from_file_without_properties<T: ObFile>() -> Result<(), Error> {
+        init_test_logger();
+        let test_data = "TEST_DATA";
+        let mut test_file = NamedTempFile::new().unwrap();
+        test_file.write_all(test_data.as_bytes()).unwrap();
+
+        let file = T::from_file(test_file.path())?;
+        let properties = file.properties();
+
+        assert_eq!(properties.len(), 0);
+        assert_eq!(file.content(), test_data);
+        Ok(())
+    }
+
+    pub(crate) fn from_file_with_invalid_yaml<T: ObFile>() -> Result<(), Error> {
+        init_test_logger();
+        let broken_data = "---\n\
+    asdfv:--fs\n\
+    sfsf\n\
+    ---\n\
+    TestData";
+
+        let mut test_file = NamedTempFile::new().unwrap();
+        test_file.write_all(broken_data.as_bytes()).unwrap();
+
+        assert!(matches!(
+            T::from_file(test_file.path()),
+            Err(Error::Yaml(_))
+        ));
+        Ok(())
+    }
+
+    pub(crate) fn from_file_invalid_format<T: ObFile>() -> Result<(), Error> {
+        init_test_logger();
+        let broken_data = "---\n";
+        let mut test_file = NamedTempFile::new().unwrap();
+        test_file.write_all(broken_data.as_bytes()).unwrap();
+
+        assert!(matches!(
+            T::from_file(test_file.path()),
+            Err(Error::InvalidFormat)
+        ));
+        Ok(())
+    }
+
+    pub(crate) fn from_file_with_unicode<T: ObFile>() -> Result<(), Error> {
+        init_test_logger();
+        let data = "---\ndata: 💩\n---\nSuper data 💩💩💩";
+        let mut test_file = NamedTempFile::new().unwrap();
+        test_file.write_all(data.as_bytes()).unwrap();
+
+        let file = T::from_file(test_file.path())?;
+        let properties = file.properties();
+
+        assert_eq!(properties["data"], "💩");
+        assert_eq!(file.content(), "Super data 💩💩💩");
+        Ok(())
+    }
+
+    pub(crate) fn from_file_space_with_properties<T: ObFile>() -> Result<(), Error> {
+        init_test_logger();
+        let data = "  ---\ntest: test-data\n---\n";
+        let mut test_file = NamedTempFile::new().unwrap();
+        test_file.write_all(data.as_bytes()).unwrap();
+
+        let file = T::from_string(data, None::<&str>)?;
+        let properties = file.properties();
+
+        assert_eq!(file.content(), data);
+        assert_eq!(properties.len(), 0);
         Ok(())
     }
 
@@ -237,9 +326,11 @@ Two test data";
 
     pub(crate) use impl_test_for_obfile;
 
-    macro_rules! impl_all_test_for_obfile {
+    macro_rules! impl_all_tests_from_string {
         ($impl_obfile:path) => {
+            #[allow(unused_imports)]
             use crate::obfile::tests::*;
+
             impl_test_for_obfile!(impl_from_string, from_string, $impl_obfile);
 
             impl_test_for_obfile!(
@@ -263,14 +354,48 @@ Two test data";
                 $impl_obfile
             );
             impl_test_for_obfile!(
-                impl_space_with_properties,
-                space_with_properties,
+                impl_from_string_space_with_properties,
+                from_string_space_with_properties,
                 $impl_obfile
             );
-
-            impl_test_for_obfile!(impl_from_file, from_file, $impl_obfile);
         };
     }
 
-    pub(crate) use impl_all_test_for_obfile;
+    macro_rules! impl_all_tests_from_file {
+        ($impl_obfile:path) => {
+            #[allow(unused_imports)]
+            use crate::obfile::tests::*;
+
+            impl_test_for_obfile!(impl_from_file, from_file, $impl_obfile);
+
+            impl_test_for_obfile!(
+                impl_from_file_without_properties,
+                from_file_without_properties,
+                $impl_obfile
+            );
+            impl_test_for_obfile!(
+                impl_from_file_with_invalid_yaml,
+                from_file_with_invalid_yaml,
+                $impl_obfile
+            );
+            impl_test_for_obfile!(
+                impl_from_file_invalid_format,
+                from_file_invalid_format,
+                $impl_obfile
+            );
+            impl_test_for_obfile!(
+                impl_from_file_with_unicode,
+                from_file_with_unicode,
+                $impl_obfile
+            );
+            impl_test_for_obfile!(
+                impl_from_file_space_with_properties,
+                from_file_space_with_properties,
+                $impl_obfile
+            );
+        };
+    }
+
+    pub(crate) use impl_all_tests_from_file;
+    pub(crate) use impl_all_tests_from_string;
 }

@@ -179,7 +179,13 @@ where
             log::debug!("Using sequential edge builder");
 
             for file in files {
-                let name: String = file.path.file_stem().unwrap().to_string_lossy().to_string();
+                let name: String = file
+                    .path()
+                    .unwrap()
+                    .file_stem()
+                    .unwrap()
+                    .to_string_lossy()
+                    .to_string();
                 parse_links(&file.content())
                     .filter(|link| nodes.contains_key(*link))
                     .for_each(|link| {

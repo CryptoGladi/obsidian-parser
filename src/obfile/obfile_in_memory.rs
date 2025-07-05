@@ -136,7 +136,8 @@ impl<T: DeserializeOwned + Default + Clone + Send> ObFile<T> for ObFileInMemory<
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::obfile::tests::impl_all_test_for_obfile;
+    use crate::obfile::tests::{impl_all_tests_from_file, impl_all_tests_from_string};
 
-    impl_all_test_for_obfile!(ObFileInMemory);
+    impl_all_tests_from_string!(ObFileInMemory);
+    impl_all_tests_from_file!(ObFileInMemory);
 }

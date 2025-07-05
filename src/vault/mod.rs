@@ -181,11 +181,12 @@ where
                         let path = entry.path();
 
                         #[allow(clippy::manual_ok_err)]
+                        #[allow(clippy::used_underscore_binding)]
                         match F::from_file(path) {
                             Ok(file) => Some(file),
-                            Err(e) => {
+                            Err(_e) => {
                                 #[cfg(feature = "logging")]
-                                log::warn!("Failed to parse {}: {}", path.display(), e);
+                                log::warn!("Failed to parse {}: {}", path.display(), _e);
 
                                 None
                             }
@@ -202,11 +203,12 @@ where
                         let path = entry.path();
 
                         #[allow(clippy::manual_ok_err)]
+                        #[allow(clippy::used_underscore_binding)]
                         match F::from_file(path) {
                             Ok(file) => Some(file),
-                            Err(_) => {
+                            Err(_e) => {
                                 #[cfg(feature = "logging")]
-                                log::warn!("Failed to parse {}: {}", path.display(), e);
+                                log::warn!("Failed to parse {}: {}", path.display(), _e);
 
                                 None
                             }
@@ -278,6 +280,10 @@ impl Vault<HashMap<String, serde_yaml::Value>, ObFileOnDisk> {
     /// Opens vault using default properties (`HashMap`) and `ObFileOnDisk` storage
     ///
     /// Recommended for most use cases due to its memory efficiency
+    ///
+    /// # Errors
+    /// Returns `Error` if:
+    /// - Path doesn't exist or isn't a directory
     pub fn open_default<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
         Self::open(path)
     }
