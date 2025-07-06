@@ -51,6 +51,12 @@ let most_connected = graph.node_indices()
     .unwrap();
 println!("Knowledge hub: {}", graph[most_connected]);
 ```
+## Example: Analyze Knowledge Connectivity
+Included example `analyzer` calculates connected components in your Obsidian vault's knowledge graph:
+
+```bash
+cargo run --example analyzer --release --features="petgraph rayon"
+```
 ## Limitations
 ⚠️ **Critical Requirement for Graph Analysis**:  
 All note filenames must be unique. Use `vault.has_unique_filenames()` to verify before calling `get_digraph()` or `get_ungraph()`.  

@@ -115,6 +115,7 @@ mod tests {
     use super::*;
     use crate::obfile::ObFileDefault;
     use crate::obfile::tests::{from_file, from_file_with_unicode, impl_test_for_obfile};
+    use crate::test_utils::init_test_logger;
     use std::io::Write;
     use tempfile::NamedTempFile;
 
@@ -129,12 +130,14 @@ mod tests {
     #[test]
     #[should_panic]
     fn use_from_string_without_path() {
+        init_test_logger();
         ObFileOnDisk::from_string_default("", None::<&str>).unwrap();
     }
 
     #[test]
     #[should_panic]
     fn use_from_file_with_path_not_file() {
+        init_test_logger();
         let temp_dir = tempfile::tempdir().unwrap();
 
         ObFileOnDisk::from_file_default(temp_dir.path()).unwrap();
@@ -142,6 +145,7 @@ mod tests {
 
     #[test]
     fn get_path() {
+        init_test_logger();
         let test_file = NamedTempFile::new().unwrap();
         let file = ObFileOnDisk::from_file_default(test_file.path()).unwrap();
 
@@ -151,6 +155,7 @@ mod tests {
 
     #[test]
     fn get_content() {
+        init_test_logger();
         let test_data = "DATA";
         let mut test_file = NamedTempFile::new().unwrap();
         test_file.write_all(test_data.as_bytes()).unwrap();
@@ -161,6 +166,7 @@ mod tests {
 
     #[test]
     fn get_properties() {
+        init_test_logger();
         let test_data = "---\ntime: now\n---\nDATA";
         let mut test_file = NamedTempFile::new().unwrap();
         test_file.write_all(test_data.as_bytes()).unwrap();
