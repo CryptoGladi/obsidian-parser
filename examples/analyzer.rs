@@ -1,5 +1,5 @@
 use dialoguer::Input;
-use obsidian_parser::vault::Vault;
+use obsidian_parser::prelude::*;
 use petgraph::algo::connected_components;
 use std::{
     path::{Path, PathBuf},

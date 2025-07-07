@@ -1,5 +1,5 @@
 use crate::error::Error;
-use crate::obfile::{ObFile, parse_obfile};
+use crate::obfile::{ObFile, ResultParse, parse_obfile};
 use serde::de::DeserializeOwned;
 use std::marker::PhantomData;
 use std::{collections::HashMap, path::PathBuf};
@@ -55,12 +55,23 @@ impl<T: DeserializeOwned + Default + Clone + Send> ObFile<T> for ObFileOnDisk<T>
     /// For repeated access, consider caching or `ObFileInMemory`.
     fn content(&self) -> String {
         let raw_text = std::fs::read_to_string(&self.path).unwrap();
-        let (valid_properties, parts) = parse_obfile(&raw_text);
 
-        match (valid_properties, &parts[..]) {
-            (false, _) => raw_text,
-            (true, [_, _, content]) => (*content).trim().to_string(),
-            _ => unimplemented!(),
+        match parse_obfile(&raw_text).unwrap() {
+            ResultParse::WithProperties {
+                content,
+                properties: _,
+            } => {
+                #[cfg(feature = "logging")]
+                log::trace!("Frontmatter detected, parsing properties");
+
+                content.to_string()
+            }
+            ResultParse::WithoutProperties => {
+                #[cfg(feature = "logging")]
+                log::trace!("No frontmatter found, storing raw content");
+
+                raw_text
+            }
         }
     }
 
@@ -70,12 +81,23 @@ impl<T: DeserializeOwned + Default + Clone + Send> ObFile<T> for ObFileOnDisk<T>
     /// - If properties can't be deserialized
     fn properties(&self) -> T {
         let raw_text = std::fs::read_to_string(&self.path).unwrap();
-        let (valid_properties, parts) = parse_obfile(&raw_text);
 
-        match (valid_properties, &parts[..]) {
-            (false, _) => T::default(),
-            (true, [_, properties, _]) => serde_yml::from_str(properties).unwrap(),
-            _ => unreachable!(),
+        match parse_obfile(&raw_text).unwrap() {
+            ResultParse::WithProperties {
+                content: _,
+                properties,
+            } => {
+                #[cfg(feature = "logging")]
+                log::trace!("Frontmatter detected, parsing properties");
+
+                serde_yml::from_str(properties).unwrap()
+            }
+            ResultParse::WithoutProperties => {
+                #[cfg(feature = "logging")]
+                log::trace!("No frontmatter found, storing raw content");
+
+                T::default()
+            }
         }
     }
 
@@ -114,7 +136,7 @@ impl<T: DeserializeOwned + Default + Clone + Send> ObFile<T> for ObFileOnDisk<T>
 mod tests {
     use super::*;
     use crate::obfile::ObFileDefault;
-    use crate::obfile::tests::{from_file, from_file_with_unicode, impl_test_for_obfile};
+    use crate::obfile::impl_tests::{from_file, from_file_with_unicode, impl_test_for_obfile};
     use crate::test_utils::init_test_logger;
     use std::io::Write;
     use tempfile::NamedTempFile;

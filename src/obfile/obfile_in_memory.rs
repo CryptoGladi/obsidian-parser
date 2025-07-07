@@ -1,5 +1,5 @@
 use crate::error::Error;
-use crate::obfile::{ObFile, parse_obfile};
+use crate::obfile::{ObFile, ResultParse, parse_obfile};
 use serde::de::DeserializeOwned;
 use std::{collections::HashMap, path::PathBuf};
 
@@ -95,39 +95,29 @@ impl<T: DeserializeOwned + Default + Clone + Send> ObFile<T> for ObFileInMemory<
                 .unwrap_or_default()
         );
 
-        let (valid_properties, parts) = parse_obfile(raw_text);
-        match (valid_properties, &parts[..]) {
-            (false, _) => {
+        match parse_obfile(raw_text)? {
+            ResultParse::WithProperties {
+                content,
+                properties,
+            } => {
                 #[cfg(feature = "logging")]
-                log::debug!("No frontmatter found, storing raw content");
+                log::trace!("Frontmatter detected, parsing properties");
+
+                Ok(Self {
+                    content: content.to_string(),
+                    properties: serde_yml::from_str(properties)?,
+                    path: path_buf,
+                })
+            }
+            ResultParse::WithoutProperties => {
+                #[cfg(feature = "logging")]
+                log::trace!("No frontmatter found, storing raw content");
 
                 Ok(Self {
                     content: raw_text.to_string(),
                     path: path_buf,
                     properties: T::default(),
                 })
-            }
-            (true, [_, properties, content]) => {
-                #[cfg(feature = "logging")]
-                log::debug!("Frontmatter detected, parsing properties");
-
-                Ok(Self {
-                    content: content.trim().to_string(),
-                    properties: serde_yml::from_str(properties)?,
-                    path: path_buf,
-                })
-            }
-            _ => {
-                #[cfg(feature = "logging")]
-                log::error!(
-                    "Invalid frontmatter format{}",
-                    path_buf
-                        .as_ref()
-                        .map(|p| format!(" in {}", p.display()))
-                        .unwrap_or_default()
-                );
-
-                Err(Error::InvalidFormat)
             }
         }
     }
@@ -136,7 +126,7 @@ impl<T: DeserializeOwned + Default + Clone + Send> ObFile<T> for ObFileInMemory<
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::obfile::tests::{impl_all_tests_from_file, impl_all_tests_from_string};
+    use crate::obfile::impl_tests::{impl_all_tests_from_file, impl_all_tests_from_string};
 
     impl_all_tests_from_string!(ObFileInMemory);
     impl_all_tests_from_file!(ObFileInMemory);

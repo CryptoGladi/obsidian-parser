@@ -2,12 +2,10 @@ pub mod obfile_in_memory;
 pub mod obfile_on_disk;
 
 use crate::error::Error;
-use regex::{Regex, RegexBuilder};
 use serde::de::DeserializeOwned;
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
-    sync::LazyLock,
 };
 
 /// Represents an Obsidian note file with frontmatter properties and content
@@ -119,27 +117,108 @@ where
     }
 }
 
-/// Helper function with enhanced logging
-fn parse_obfile(raw_text: &str) -> (bool, Vec<&str>) {
-    static PROPERTIES_REGEX: LazyLock<Regex> = LazyLock::new(|| {
-        RegexBuilder::new(r"^---\s*$")
-            .multi_line(true)
-            .unicode(false)
-            .build()
-            .unwrap()
-    });
+#[derive(Debug, PartialEq)]
+enum ResultParse<'a> {
+    WithProperties {
+        content: &'a str,
+        properties: &'a str,
+    },
+    WithoutProperties,
+}
 
-    #[cfg(feature = "logging")]
-    log::trace!("Parse obsidian file from string");
+fn parse_obfile(raw_text: &str) -> Result<ResultParse, Error> {
+    let mut lines = raw_text.lines();
+    if lines.next().unwrap_or_default().trim_end() == "---" {
+        let closed = raw_text["---".len()..]
+            .find("---")
+            .ok_or(Error::InvalidFormat)?;
 
-    let parts: Vec<_> = PROPERTIES_REGEX.splitn(raw_text, 3).collect();
-    let valid_properties = raw_text.starts_with("---");
+        return Ok(ResultParse::WithProperties {
+            content: raw_text[(closed + 2 * "...".len())..].trim(),
+            properties: raw_text["...".len()..(closed + "...".len())].trim(),
+        });
+    }
 
-    (valid_properties, parts)
+    Ok(ResultParse::WithoutProperties)
 }
 
 #[cfg(test)]
-pub(crate) mod tests {
+mod tests {
+    use super::{ResultParse, parse_obfile};
+    use crate::test_utils::init_test_logger;
+
+    #[test]
+    fn parse_obfile_without_properties() {
+        init_test_logger();
+        let test_data = "test_data";
+        let result = parse_obfile(test_data).unwrap();
+
+        assert_eq!(result, ResultParse::WithoutProperties);
+    }
+
+    #[test]
+    fn parse_obfile_with_properties() {
+        init_test_logger();
+        let test_data = "---\nproperties data\n---\ntest data";
+        let result = parse_obfile(test_data).unwrap();
+
+        assert_eq!(
+            result,
+            ResultParse::WithProperties {
+                content: "test data",
+                properties: "properties data"
+            }
+        );
+    }
+
+    #[test]
+    fn parse_obfile_without_properties_but_with_closed() {
+        init_test_logger();
+        let test_data1 = "test_data---";
+        let test_data2 = "test_data\n---\n";
+
+        let result1 = parse_obfile(test_data1).unwrap();
+        let result2 = parse_obfile(test_data2).unwrap();
+
+        assert_eq!(result1, ResultParse::WithoutProperties);
+        assert_eq!(result2, ResultParse::WithoutProperties);
+    }
+
+    #[test]
+    #[should_panic]
+    fn parse_obfile_with_properties_but_without_closed() {
+        init_test_logger();
+        let test_data = "---\nproperties data\ntest data";
+        let _ = parse_obfile(test_data).unwrap();
+    }
+
+    #[test]
+    fn parse_obfile_without_properties_but_with_spaces() {
+        init_test_logger();
+        let test_data = "   ---\ndata";
+
+        let result = parse_obfile(test_data).unwrap();
+        assert_eq!(result, ResultParse::WithoutProperties);
+    }
+
+    #[test]
+    fn parse_obfile_with_properties_but_check_trim_end() {
+        init_test_logger();
+        let test_data = "---\r\nproperties data\r\n---\r   \ntest data";
+        let result = parse_obfile(test_data).unwrap();
+
+        assert_eq!(
+            result,
+            ResultParse::WithProperties {
+                content: "test data",
+                properties: "properties data"
+            }
+        );
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod impl_tests {
     use super::*;
     use crate::test_utils::init_test_logger;
     use serde::Deserialize;
@@ -329,7 +408,7 @@ Two test data";
     macro_rules! impl_all_tests_from_string {
         ($impl_obfile:path) => {
             #[allow(unused_imports)]
-            use crate::obfile::tests::*;
+            use crate::obfile::impl_tests::*;
 
             impl_test_for_obfile!(impl_from_string, from_string, $impl_obfile);
 
@@ -364,7 +443,7 @@ Two test data";
     macro_rules! impl_all_tests_from_file {
         ($impl_obfile:path) => {
             #[allow(unused_imports)]
-            use crate::obfile::tests::*;
+            use crate::obfile::impl_tests::*;
 
             impl_test_for_obfile!(impl_from_file, from_file, $impl_obfile);
 

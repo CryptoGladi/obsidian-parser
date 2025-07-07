@@ -38,7 +38,7 @@
 //!     priority: u8,
 //! }
 //!
-//! let note_hashmap: ObFileInMemory<NoteProperties> = ObFileInMemory::from_file("note.md").unwrap();
+//! let note_with_serde: ObFileInMemory<NoteProperties> = ObFileInMemory::from_file("note.md").unwrap();
 //! ```
 //!
 //! ### Vault Analysis
