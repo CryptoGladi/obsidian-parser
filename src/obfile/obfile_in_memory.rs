@@ -19,7 +19,7 @@ use std::{collections::HashMap, path::PathBuf};
 ///
 /// [`ObFileOnDisk`]: crate::obfile::obfile_on_disk::ObFileOnDisk
 #[derive(Debug, Default, PartialEq, Clone)]
-pub struct ObFileInMemory<T = HashMap<String, serde_yaml::Value>>
+pub struct ObFileInMemory<T = HashMap<String, serde_yml::Value>>
 where
     T: DeserializeOwned + Default + Clone + Send,
 {
@@ -113,7 +113,7 @@ impl<T: DeserializeOwned + Default + Clone + Send> ObFile<T> for ObFileInMemory<
 
                 Ok(Self {
                     content: content.trim().to_string(),
-                    properties: serde_yaml::from_str(properties)?,
+                    properties: serde_yml::from_str(properties)?,
                     path: path_buf,
                 })
             }

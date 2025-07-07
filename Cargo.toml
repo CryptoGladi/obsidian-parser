@@ -1,6 +1,6 @@
 [package]
 name = "obsidian-parser"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 description = "Blazingly fast Obsidian vault parser with graph analysis"
 repository = "https://github.com/CryptoGladi/obsidian-parser"
@@ -12,7 +12,6 @@ categories = ["parser-implementations", "data-structures"]
 itertools = "0.14"
 regex = "1.11"
 serde = { version = "1.0", features = ["derive"] }
-serde_yaml = "0.9"
 thiserror = "2.0"
 walkdir = "2.5"
 log = { version = "0.4", optional = true }
@@ -21,6 +20,7 @@ rayon = { version = "1.10", optional = true }
 crossbeam = { version = "0.8", features = [
     "crossbeam-channel",
 ], optional = true }
+serde_yml = "0.0.12"
 
 [dev-dependencies]
 criterion = "0.6.0"

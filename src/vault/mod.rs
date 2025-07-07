@@ -276,7 +276,7 @@ where
 }
 
 #[allow(clippy::implicit_hasher)]
-impl Vault<HashMap<String, serde_yaml::Value>, ObFileOnDisk> {
+impl Vault<HashMap<String, serde_yml::Value>, ObFileOnDisk> {
     /// Opens vault using default properties (`HashMap`) and `ObFileOnDisk` storage
     ///
     /// Recommended for most use cases due to its memory efficiency

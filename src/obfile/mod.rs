@@ -32,7 +32,7 @@ use std::{
 /// let note: ObFileInMemory<NoteProperties> = ObFile::from_file("note.md").unwrap();
 /// println!("Note topic: {}", note.properties().topic);
 /// ```
-pub trait ObFile<T = HashMap<String, serde_yaml::Value>>: Sized
+pub trait ObFile<T = HashMap<String, serde_yml::Value>>: Sized
 where
     T: DeserializeOwned + Default + Clone + Send,
 {
@@ -90,7 +90,7 @@ where
 ///
 /// Automatically implemented for all `ObFile<HashMap<..>>` types.
 /// Provides identical interface with explicitly named methods.
-pub trait ObFileDefault: ObFile<HashMap<String, serde_yaml::Value>> {
+pub trait ObFileDefault: ObFile<HashMap<String, serde_yml::Value>> {
     /// Same as `ObFile::from_string` with default properties type
     ///
     /// # Errors
@@ -108,7 +108,7 @@ pub trait ObFileDefault: ObFile<HashMap<String, serde_yaml::Value>> {
 
 impl<T> ObFileDefault for T
 where
-    T: ObFile<HashMap<String, serde_yaml::Value>>,
+    T: ObFile<HashMap<String, serde_yml::Value>>,
 {
     fn from_string_default<P: AsRef<Path>>(text: &str, path: Option<P>) -> Result<Self, Error> {
         Self::from_string(text, path)

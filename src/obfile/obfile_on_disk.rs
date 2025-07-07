@@ -29,7 +29,7 @@ use std::{collections::HashMap, path::PathBuf};
 /// Requires **persistent file access** throughout the object's lifetime. If files are moved/deleted,
 /// calling `content()` or `properties()` will **panic**
 #[derive(Debug, Default, PartialEq, Clone)]
-pub struct ObFileOnDisk<T = HashMap<String, serde_yaml::Value>>
+pub struct ObFileOnDisk<T = HashMap<String, serde_yml::Value>>
 where
     T: DeserializeOwned + Default + Clone + Send,
 {
@@ -74,7 +74,7 @@ impl<T: DeserializeOwned + Default + Clone + Send> ObFile<T> for ObFileOnDisk<T>
 
         match (valid_properties, &parts[..]) {
             (false, _) => T::default(),
-            (true, [_, properties, _]) => serde_yaml::from_str(properties).unwrap(),
+            (true, [_, properties, _]) => serde_yml::from_str(properties).unwrap(),
             _ => unreachable!(),
         }
     }

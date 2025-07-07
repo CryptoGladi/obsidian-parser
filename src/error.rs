@@ -36,7 +36,7 @@ pub enum Error {
     /// ---
     /// ```
     #[error("YAML parsing error: {0}")]
-    Yaml(#[from] serde_yaml::Error),
+    Yaml(#[from] serde_yml::Error),
 
     /// Expected a directory path
     ///
