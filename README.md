@@ -18,6 +18,28 @@ Add to `Cargo.toml`:
 obsidian-parser = "0.1"
 ```
 ### Basic Usage
+*  Parsing
+```rust
+use obsidian_parser::prelude::*;
+use serde::Deserialize;
+
+// Parse single file with `HashMap`
+let note_hashmap = ObFileInMemory::from_file_default("note.md").unwrap();
+
+println!("Content: {}", note_hashmap.content());
+println!("Properties: {:#?}", note_hashmap.properties());
+
+// Parse single file with custom struct
+#[derive(Clone, Default, Deserialize)]
+struct NoteProperties {
+    created: String,
+     tags: Vec<String>,
+     priority: u8,
+}
+
+let note_with_serde: ObFileInMemory<NoteProperties> = ObFileInMemory::from_file("note.md").unwrap();
+```
+* Vault
 ```rust
 use obsidian_parser::prelude::*;
 // Open vault (defaults to on-disk representation for efficiency)
