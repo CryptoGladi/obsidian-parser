@@ -77,6 +77,7 @@ where
 
         #[cfg(feature = "logging")]
         log::trace!("Parse obsidian file from file: {}", path_buf.display());
+
         let data = std::fs::read(path)?;
         let text = String::from_utf8(data)?;
 

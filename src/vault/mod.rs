@@ -89,6 +89,13 @@ use std::{
 };
 use walkdir::{DirEntry, WalkDir};
 
+fn is_hidden(entry: &DirEntry) -> bool {
+    entry
+        .file_name()
+        .to_str()
+        .is_some_and(|s| s.starts_with('.'))
+}
+
 /// Represents an entire Obsidian vault
 ///
 /// Contains all parsed notes and metadata about the vault. Uses `ObFileOnDisk` by default
@@ -110,13 +117,6 @@ where
     pub path: PathBuf,
 
     pub phantom: PhantomData<T>,
-}
-
-fn is_hidden(entry: &DirEntry) -> bool {
-    entry
-        .file_name()
-        .to_str()
-        .is_some_and(|s| s.starts_with('.'))
 }
 
 impl<T, F> Vault<T, F>
@@ -175,18 +175,17 @@ where
             #[cfg(feature = "rayon")]
             {
                 use rayon::prelude::*;
+
                 files_for_parse
                     .into_par_iter()
-                    .filter_map(|entry| {
-                        let path = entry.path();
-
+                    .filter_map(|file| {
                         #[allow(clippy::manual_ok_err)]
                         #[allow(clippy::used_underscore_binding)]
-                        match F::from_file(path) {
+                        match F::from_file(file.path()) {
                             Ok(file) => Some(file),
                             Err(_e) => {
                                 #[cfg(feature = "logging")]
-                                log::warn!("Failed to parse {}: {}", path.display(), _e);
+                                log::warn!("Failed to parse {}: {}", &file.path().display(), _e);
 
                                 None
                             }

@@ -13,13 +13,14 @@ itertools = "0.14"
 serde = { version = "1.0", features = ["derive"] }
 thiserror = "2.0"
 walkdir = "2.5"
+serde_yml = "0.0.12"
+ahash = "0.8.12"
 log = { version = "0.4", optional = true }
 petgraph = { version = "0.8", optional = true }
 rayon = { version = "1.10", optional = true }
 crossbeam = { version = "0.8", features = [
     "crossbeam-channel",
 ], optional = true }
-serde_yml = "0.0.12"
 
 [dev-dependencies]
 criterion = "0.6.0"
@@ -29,7 +30,7 @@ rand = "0.9.1"
 tempfile = "3.20.0"
 
 [features]
-default = []
+default = ["rayon", "petgraph", "logging"]
 logging = ["dep:log"]
 petgraph = ["dep:petgraph"]
 rayon = ["dep:rayon", "dep:crossbeam"]

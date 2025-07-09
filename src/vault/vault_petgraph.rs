@@ -78,13 +78,13 @@
 
 use super::Vault;
 use crate::obfile::ObFile;
+use ahash::AHashMap;
 use petgraph::graph::NodeIndex;
 use petgraph::{
     EdgeType, Graph,
     graph::{DiGraph, UnGraph},
 };
 use serde::de::DeserializeOwned;
-use std::collections::HashMap;
 use std::marker::{Send, Sync};
 
 /// Parses Obsidian-style links in note content
@@ -124,19 +124,21 @@ pub fn parse_links(text: &str) -> impl Iterator<Item = &str> {
 impl<T, F> Vault<T, F>
 where
     T: DeserializeOwned + Default + Clone + Send,
-    F: ObFile<T> + Send + Clone,
+    F: ObFile<T> + Send + Sync + Clone,
 {
     /// Builds edges between nodes in the graph
     ///
     /// Uses parallel processing when `rayon` feature is enabled
     fn build_edges_for_graph<Ty: EdgeType + Send + Sync>(
         graph: &mut Graph<String, (), Ty>,
-        files: Vec<F>,
-        nodes: &HashMap<String, usize>,
+        files: &Vec<F>,
+        nodes: &AHashMap<String, usize>,
     ) {
         #[cfg(feature = "rayon")]
         {
             use rayon::prelude::*;
+
+            const CHUNK_SIZE: usize = 10;
 
             #[cfg(feature = "logging")]
             log::debug!("Using parallel edge builder (rayon enabled)");
@@ -145,29 +147,41 @@ where
 
             rayon::scope(|s| {
                 s.spawn(|_| {
-                    files.into_par_iter().for_each_with(tx, |tx, file| {
-                        let name: String = file
-                            .path()
-                            .unwrap()
-                            .file_stem()
-                            .unwrap()
-                            .to_string_lossy()
-                            .to_string();
+                    files
+                        .into_par_iter()
+                        .chunks(CHUNK_SIZE)
+                        .for_each_with(tx, |tx, files| {
+                            let mut result = Vec::with_capacity(10 * CHUNK_SIZE);
 
-                        parse_links(&file.content())
-                            .filter(|link| nodes.contains_key(*link))
-                            .for_each(|link| {
-                                let node_to = nodes.get(&name).unwrap();
-                                let node_from = nodes.get(link).unwrap();
+                            for file in files {
+                                let name: String = file
+                                    .path()
+                                    .unwrap()
+                                    .file_stem()
+                                    .unwrap()
+                                    .to_string_lossy()
+                                    .to_string();
 
-                                tx.send((node_to, node_from)).unwrap();
-                            });
-                    });
+                                parse_links(&file.content())
+                                    .filter(|link| nodes.contains_key(*link))
+                                    .map(|link| {
+                                        let node_to = nodes[&name];
+                                        let node_from = nodes[link];
+
+                                        (node_to, node_from)
+                                    })
+                                    .for_each(|x| result.push(x));
+                            }
+
+                            tx.send(result).unwrap();
+                        });
                 });
 
                 s.spawn(|_| {
-                    while let Ok((node_to, node_from)) = rx.recv() {
-                        graph.add_edge(NodeIndex::new(*node_to), NodeIndex::new(*node_from), ());
+                    while let Ok(result) = rx.recv() {
+                        for (node_to, node_from) in result {
+                            graph.add_edge(NodeIndex::new(node_to), NodeIndex::new(node_from), ());
+                        }
                     }
                 });
             });
@@ -186,6 +200,7 @@ where
                     .unwrap()
                     .to_string_lossy()
                     .to_string();
+
                 parse_links(&file.content())
                     .filter(|link| nodes.contains_key(*link))
                     .for_each(|link| {
@@ -218,7 +233,7 @@ where
             "Duplicate note names detected - graph requires unique node identifiers"
         );
 
-        let mut nodes: HashMap<String, usize> = HashMap::new();
+        let mut nodes = AHashMap::default();
         for file in &self.files {
             let name: String = file
                 .path()
@@ -232,8 +247,7 @@ where
             nodes.insert(name, node.index());
         }
 
-        // self.files.clone() is fast!
-        Self::build_edges_for_graph(graph, self.files.clone(), &nodes);
+        Self::build_edges_for_graph(graph, &self.files, &nodes);
     }
 
     /// Builds directed graph representing note relationships

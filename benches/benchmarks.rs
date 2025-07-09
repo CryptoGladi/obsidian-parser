@@ -54,7 +54,7 @@ fn generate_test_vault(num_files: usize, links_per_file: usize) -> TempDir {
     temp_dir
 }
 
-fn vault_open_benchmark_on_disk(c: &mut Criterion) {
+fn vault_open_benchmark(c: &mut Criterion) {
     let num_files = 1000;
     let links_per_file = 10;
 
@@ -68,14 +68,6 @@ fn vault_open_benchmark_on_disk(c: &mut Criterion) {
             black_box(vault);
         })
     });
-}
-
-fn vault_open_benchmark_in_memory(c: &mut Criterion) {
-    let num_files = 1000;
-    let links_per_file = 10;
-
-    let temp_dir = generate_test_vault(num_files, links_per_file);
-    let path = temp_dir.path();
 
     c.bench_function("vault_open_in_memory", |b| {
         b.iter(|| {
@@ -86,35 +78,27 @@ fn vault_open_benchmark_in_memory(c: &mut Criterion) {
     });
 }
 
-fn graph_build_benchmark_on_disk(c: &mut Criterion) {
+fn graph_build_benchmark(c: &mut Criterion) {
     let num_files = 1000;
     let links_per_file = 10;
 
     let temp_dir = generate_test_vault(num_files, links_per_file);
     let path = temp_dir.path();
-    let vault: Vault<NoteProperties, ObFileOnDisk<NoteProperties>> =
-        Vault::open(black_box(path)).unwrap();
 
+    let vault_on_disk: Vault<NoteProperties, ObFileOnDisk<NoteProperties>> =
+        Vault::open(black_box(path)).unwrap();
     c.bench_function("graph_build_on_disk", |b| {
         b.iter(|| {
-            let graph = vault.get_digraph();
+            let graph = vault_on_disk.get_digraph();
             black_box(graph);
         })
     });
-}
 
-fn graph_build_benchmark_in_memory(c: &mut Criterion) {
-    let num_files = 1000;
-    let links_per_file = 10;
-
-    let temp_dir = generate_test_vault(num_files, links_per_file);
-    let path = temp_dir.path();
-    let vault: Vault<NoteProperties, ObFileInMemory<NoteProperties>> =
+    let vault_in_memory: Vault<NoteProperties, ObFileInMemory<NoteProperties>> =
         Vault::open(black_box(path)).unwrap();
-
     c.bench_function("graph_build_in_memory", |b| {
         b.iter(|| {
-            let graph = vault.get_digraph();
+            let graph = vault_in_memory.get_digraph();
             black_box(graph);
         })
     });
@@ -125,7 +109,7 @@ criterion_group! {
     config = Criterion::default()
         .sample_size(20)
         .warm_up_time(std::time::Duration::from_secs(1));
-    targets = vault_open_benchmark_on_disk, vault_open_benchmark_in_memory, graph_build_benchmark_on_disk, graph_build_benchmark_in_memory
+    targets = vault_open_benchmark, graph_build_benchmark
 }
 
 criterion_main!(benches);
