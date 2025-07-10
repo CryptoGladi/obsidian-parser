@@ -143,7 +143,7 @@ where
             #[cfg(feature = "logging")]
             log::debug!("Using parallel edge builder (rayon enabled)");
 
-            let (tx, rx) = crossbeam::channel::unbounded();
+            let (tx, rx) = crossbeam_channel::unbounded();
 
             rayon::scope(|s| {
                 s.spawn(|_| {

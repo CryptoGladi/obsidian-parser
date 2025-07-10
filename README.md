@@ -6,7 +6,7 @@
 
 Blazingly fast Rust library for parsing and analyzing [Obsidian](https://obsidian.md) vaults.
 ## Features
-- ⚡ **High Performance**: Parses 1000+ notes in under 10ms
+- ⚡ **High Performance**: Parses 1000+ notes in under 3ms
 - 🧠 **Knowledge Graphs**: Built-in integration with `petgraph` for advanced analysis
 - 🧩 **Flexible API**: Supports both in-memory and on-disk note representations
 - 🔍 **Frontmatter Parsing**: Extract YAML properties with Serde compatibility
@@ -84,11 +84,11 @@ cargo run --example analyzer --release --features="petgraph rayon"
 All note filenames must be unique. Use `vault.has_unique_filenames()` to verify before calling `get_digraph()` or `get_ungraph()`.  
 Why? Notes are identified by filename in graph operations. Duplicates will cause incorrect graph construction.
 ## Performance
-Benchmarked on 6-core CPU with NVMe SSD (1056 notes, 3377 links):  
-| Operation               | Time     |
-|-------------------------|----------|
-| Vault initialization    | 6.55 ms  |
-| Graph construction      | 3.30 ms  |
-| Peak memory usage       | 900 KiB  |
+Benchmarked on 6-core CPU with NVMe SSD (1000 notes):  
+| Operation               | Time       |
+|-------------------------|------------|
+| Vault initialization    | 741.92 µs  |
+| Graph construction      | 1.75 ms    |
+| Peak memory usage       | 900 KiB    |
 ## License
 MIT © [CryptoGladi](https://github.com/CryptoGladi)

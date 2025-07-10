@@ -54,7 +54,8 @@ impl<T: DeserializeOwned + Default + Clone + Send> ObFile<T> for ObFileOnDisk<T>
     ///
     /// For repeated access, consider caching or `ObFileInMemory`.
     fn content(&self) -> String {
-        let raw_text = std::fs::read_to_string(&self.path).unwrap();
+        let data = std::fs::read(&self.path).unwrap();
+        let raw_text = String::from_utf8(data).unwrap();
 
         match parse_obfile(&raw_text).unwrap() {
             ResultParse::WithProperties {
@@ -80,7 +81,8 @@ impl<T: DeserializeOwned + Default + Clone + Send> ObFile<T> for ObFileOnDisk<T>
     /// # Panics
     /// - If properties can't be deserialized
     fn properties(&self) -> T {
-        let raw_text = std::fs::read_to_string(&self.path).unwrap();
+        let data = std::fs::read(&self.path).unwrap();
+        let raw_text = String::from_utf8(data).unwrap();
 
         match parse_obfile(&raw_text).unwrap() {
             ResultParse::WithProperties {
