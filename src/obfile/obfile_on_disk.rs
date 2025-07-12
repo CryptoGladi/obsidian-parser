@@ -28,7 +28,7 @@ use std::{collections::HashMap, path::PathBuf};
 /// # Warning
 /// Requires **persistent file access** throughout the object's lifetime. If files are moved/deleted,
 /// calling `content()` or `properties()` will **panic**
-#[derive(Debug, Default, PartialEq, Clone)]
+#[derive(Debug, Default, PartialEq, Eq, Clone)]
 pub struct ObFileOnDisk<T = HashMap<String, serde_yml::Value>>
 where
     T: DeserializeOwned + Default + Clone + Send,
@@ -53,6 +53,10 @@ impl<T: DeserializeOwned + Default + Clone + Send> ObFile<T> for ObFileOnDisk<T>
     /// - Large files where in-memory storage is prohibitive
     ///
     /// For repeated access, consider caching or `ObFileInMemory`.
+    #[allow(
+        clippy::unwrap_used,
+        reason = "The documentation states that panics are possible"
+    )]
     fn content(&self) -> String {
         let data = std::fs::read(&self.path).unwrap();
         let raw_text = String::from_utf8(data).unwrap();
@@ -80,6 +84,10 @@ impl<T: DeserializeOwned + Default + Clone + Send> ObFile<T> for ObFileOnDisk<T>
     ///
     /// # Panics
     /// - If properties can't be deserialized
+    #[allow(
+        clippy::unwrap_used,
+        reason = "The documentation states that panics are possible"
+    )]
     fn properties(&self) -> T {
         let data = std::fs::read(&self.path).unwrap();
         let raw_text = String::from_utf8(data).unwrap();
@@ -103,6 +111,7 @@ impl<T: DeserializeOwned + Default + Clone + Send> ObFile<T> for ObFileOnDisk<T>
         }
     }
 
+    #[inline]
     fn path(&self) -> Option<PathBuf> {
         Some(self.path.clone())
     }

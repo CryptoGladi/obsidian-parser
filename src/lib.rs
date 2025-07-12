@@ -93,6 +93,15 @@
 
 #![forbid(unsafe_code)]
 #![warn(clippy::pedantic)]
+#![warn(clippy::cargo)]
+#![warn(clippy::nursery)]
+#![warn(clippy::perf)]
+#![warn(clippy::unwrap_used)]
+#![warn(clippy::panic)]
+#![warn(clippy::needless_pass_by_value)]
+#![warn(clippy::unreadable_literal)]
+#![warn(clippy::missing_const_for_fn)]
+#![warn(clippy::as_conversions)]
 
 pub mod error;
 pub mod obfile;

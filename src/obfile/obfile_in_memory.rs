@@ -18,7 +18,7 @@ use std::{collections::HashMap, path::PathBuf};
 /// For large vaults or read-heavy workflows, consider [`ObFileOnDisk`].
 ///
 /// [`ObFileOnDisk`]: crate::obfile::obfile_on_disk::ObFileOnDisk
-#[derive(Debug, Default, PartialEq, Clone)]
+#[derive(Debug, Default, PartialEq, Eq, Clone)]
 pub struct ObFileInMemory<T = HashMap<String, serde_yml::Value>>
 where
     T: DeserializeOwned + Default + Clone + Send,
@@ -34,14 +34,17 @@ where
 }
 
 impl<T: DeserializeOwned + Default + Clone + Send> ObFile<T> for ObFileInMemory<T> {
+    #[inline]
     fn content(&self) -> String {
         self.content.clone()
     }
 
+    #[inline]
     fn path(&self) -> Option<PathBuf> {
         self.path.clone()
     }
 
+    #[inline]
     fn properties(&self) -> T {
         self.properties.clone()
     }

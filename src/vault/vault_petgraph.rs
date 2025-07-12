@@ -121,6 +121,23 @@ pub fn parse_links(text: &str) -> impl Iterator<Item = &str> {
     })
 }
 
+#[allow(
+    clippy::unwrap_used,
+    reason = "When creating a Vault, the path will be mandatory"
+)]
+fn get_name_for_note<T>(obfile: &impl ObFile<T>) -> String
+where
+    T: DeserializeOwned + Default + Clone + Send,
+{
+    obfile
+        .path()
+        .unwrap()
+        .file_stem()
+        .unwrap()
+        .to_string_lossy()
+        .to_string()
+}
+
 impl<T, F> Vault<T, F>
 where
     T: DeserializeOwned + Default + Clone + Send,
@@ -129,9 +146,10 @@ where
     /// Builds edges between nodes in the graph
     ///
     /// Uses parallel processing when `rayon` feature is enabled
+    #[allow(clippy::unwrap_used)]
     fn build_edges_for_graph<Ty: EdgeType + Send + Sync>(
         graph: &mut Graph<String, (), Ty>,
-        files: &Vec<F>,
+        files: &[F],
         nodes: &AHashMap<String, usize>,
     ) {
         #[cfg(feature = "rayon")]
@@ -154,13 +172,7 @@ where
                             let mut result = Vec::with_capacity(10 * CHUNK_SIZE);
 
                             for file in files {
-                                let name: String = file
-                                    .path()
-                                    .unwrap()
-                                    .file_stem()
-                                    .unwrap()
-                                    .to_string_lossy()
-                                    .to_string();
+                                let name = get_name_for_note(file);
 
                                 parse_links(&file.content())
                                     .filter(|link| nodes.contains_key(*link))
@@ -193,13 +205,7 @@ where
             log::debug!("Using sequential edge builder");
 
             for file in files {
-                let name: String = file
-                    .path()
-                    .unwrap()
-                    .file_stem()
-                    .unwrap()
-                    .to_string_lossy()
-                    .to_string();
+                let name = get_name_for_note(file);
 
                 parse_links(&file.content())
                     .filter(|link| nodes.contains_key(*link))
@@ -235,13 +241,7 @@ where
 
         let mut nodes = AHashMap::default();
         for file in &self.files {
-            let name: String = file
-                .path()
-                .unwrap()
-                .file_stem()
-                .unwrap()
-                .to_string_lossy()
-                .to_string();
+            let name = get_name_for_note(file);
 
             let node = graph.add_node(name.clone());
             nodes.insert(name, node.index());

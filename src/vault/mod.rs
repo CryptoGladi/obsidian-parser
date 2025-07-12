@@ -104,7 +104,7 @@ fn is_hidden(entry: &DirEntry) -> bool {
 /// # Type Parameters
 /// - `T`: Type for frontmatter properties (must implement `DeserializeOwned + Default`)
 /// - `F`: File representation type (`ObFileOnDisk` recommended for production use)
-#[derive(Debug, Default, PartialEq, Clone)]
+#[derive(Debug, Default, PartialEq, Eq, Clone)]
 pub struct Vault<T, F = ObFileOnDisk<T>>
 where
     T: DeserializeOwned + Default + Send + Clone,
@@ -248,12 +248,12 @@ where
 
         #[allow(
             clippy::missing_panics_doc,
+            clippy::unwrap_used,
             reason = "In any case, we will have a path to the files"
         )]
         let count_unique = self
             .files
             .iter()
-            .cloned()
             .map(|x| x.path().unwrap())
             .map(|x| x.file_name().unwrap().display().to_string())
             .sorted()
