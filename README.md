@@ -84,7 +84,8 @@ cargo run --example analyzer --release --features="petgraph rayon"
 All note filenames must be unique. Use `vault.has_unique_filenames()` to verify before calling `get_digraph()` or `get_ungraph()`.  
 Why? Notes are identified by filename in graph operations. Duplicates will cause incorrect graph construction.
 ## Performance
-Benchmarked on 6-core CPU with NVMe SSD (1000 notes):  
+AMD Ryzen 5 3600X
+Benchmarked on 6-core CPU with NVMe SSD (1000 notes):
 | Operation               | Time       |
 |-------------------------|------------|
 | Vault initialization    | 741.92 µs  |
