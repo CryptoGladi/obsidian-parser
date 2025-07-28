@@ -1,4 +1,4 @@
-//! `obsidian-parser` - Blazingly fast Rust library for parsing and analyzing Obsidian vaults
+//! `obsidian-parser` - Blazingly fast Rust library for parsing and analyzing [Obsidian](https://obsidian.md) vaults
 //!
 //! Provides idiomatic APIs for:
 //! - Parsing individual Obsidian notes with frontmatter properties
@@ -8,13 +8,13 @@
 //! ## Key Features
 //! * 🛡️ **100% Safe Rust** - Strictly forbids unsafe code (`#![forbid(unsafe_code)]`)
 //! * ⚡ **High Performance** - Parses 1000 notes in <3ms
-//! * 🕸️ **Knowledge Graphs** - Built-in petgraph integration for graph analysis (requires `petgraph` feature)
+//! * 🕸️ **Knowledge Graphs** - Built-in petgraph integration for graph analysis (requires [`petgraph`] feature)
 //!
 //! ## Usage
 //! Add to `Cargo.toml`:
 //! ```toml
 //! [dependencies]
-//! obsidian-parser = { version = "0.1", features = ["petgraph", "rayon"] }
+//! obsidian-parser = { version = "0.2", features = ["petgraph", "rayon"] }
 //! ```
 //!
 //! ## Examples
@@ -49,12 +49,12 @@
 //! let vault = Vault::open_default("/path/to/vault").unwrap();
 //!
 //! // Check for duplicate note names
-//! if !vault.has_unique_name_note() {
+//! if !vault.check_unique_note_name() {
 //!     eprintln!("Duplicate note names detected!");
 //! }
 //! ```
 //!
-//! ### Graph Analysis (requires `petgraph` feature)
+//! ### Graph Analysis (requires [`petgraph`] feature)
 //! ```no_run
 //! #[cfg(feature = "petgraph")]
 //! {
@@ -80,17 +80,10 @@
 //! - 🚀 1000 files parsed in 2.7ms (avg)
 //! - 💾 Peak memory: 900KB per 1000 notes
 //!
-//! Parallel processing via Rayon (enable `rayon` feature)
-//!
-//! ## Graph Features
-//! When `petgraph` feature is enabled:
-//! - Build directed/undirected knowledge graphs
-//! - Analyze note connectivity
-//! - Detect knowledge clusters
-//! - Calculate centrality metrics
-//!
-//! Graph nodes use note names, edges represent links (`[[...]]`).
+//! Parallel processing via Rayon (enable [`rayon`] feature)
 
+#![forbid(unsafe_code)]
+#![warn(missing_docs)]
 #![warn(clippy::pedantic)]
 #![warn(clippy::cargo)]
 #![warn(clippy::nursery)]
@@ -104,14 +97,8 @@
 
 pub mod error;
 pub mod obfile;
+pub mod prelude;
 pub mod vault;
 
 #[cfg(test)]
 pub(crate) mod test_utils;
-
-pub mod prelude {
-    pub use crate::obfile::obfile_in_memory::ObFileInMemory;
-    pub use crate::obfile::obfile_on_disk::ObFileOnDisk;
-    pub use crate::obfile::{ObFile, ObFileDefault};
-    pub use crate::vault::Vault;
-}

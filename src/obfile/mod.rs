@@ -1,3 +1,5 @@
+//! Represents an Obsidian note file with frontmatter properties and content
+
 pub mod obfile_in_memory;
 pub mod obfile_on_disk;
 
@@ -16,7 +18,7 @@ type DefaultProperties = HashMap<String, serde_yml::Value>;
 /// handling frontmatter parsing, content extraction, and file operations.
 ///
 /// # Type Parameters
-/// - `T`: Frontmatter properties type (must implement `DeserializeOwned + Default + Clone + Send`)
+/// - `T`: Frontmatter properties type
 ///
 /// # Example
 /// ```no_run
@@ -45,12 +47,12 @@ where
 
     /// Returns the source file path if available
     ///
-    /// Returns `None` for in-memory notes without physical storage
+    /// Returns [`None`] for in-memory notes without physical storage
     fn path(&self) -> Option<PathBuf>;
 
     /// Returns the parsed properties of frontmatter
     ///
-    /// Returns `None` if the note has no properties
+    /// Returns [`None`] if the note has no properties
     fn properties(&self) -> Option<T>;
 
     /// Get note name
@@ -71,8 +73,8 @@ where
     /// - `path`: Optional source path for reference
     ///
     /// # Errors
-    /// - `Error::InvalidFormat` for malformed frontmatter
-    /// - `Error::Yaml` for invalid YAML syntax
+    /// - [`Error::InvalidFormat`] for malformed frontmatter
+    /// - [`Error::Yaml`] for invalid YAML syntax
     fn from_string<P: AsRef<Path>>(raw_text: &str, path: Option<P>) -> Result<Self, Error>;
 
     /// Parses an Obsidian note from a file
@@ -81,8 +83,8 @@ where
     /// - `path`: Filesystem path to markdown file
     ///
     /// # Errors
-    /// - `Error::Io` for filesystem errors
-    /// - `Error::FromUtf8` for non-UTF8 content
+    /// - [`Error::Io`] for filesystem errors
+    /// - [`Error::FromUtf8`] for non-UTF8 content
     fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
         let path_buf = path.as_ref().to_path_buf();
 
@@ -94,47 +96,26 @@ where
 
         Self::from_string(&text, Some(path_buf))
     }
-
-    /// Parses an Obsidian note from a file
-    ///
-    /// # Arguments
-    /// - `path`: Filesystem path to markdown file
-    ///
-    /// # Errors
-    /// - `Error::Io` for filesystem errors
-    unsafe fn from_file_unchecked<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
-        let path_buf = path.as_ref().to_path_buf();
-
-        #[cfg(feature = "logging")]
-        log::trace!("Parse unchecked obsidian file from: {}", path_buf.display());
-
-        let data = std::fs::read(path)?;
-        let text = unsafe { String::from_utf8_unchecked(data) };
-
-        Self::from_string(&text, Some(path_buf))
-    }
 }
 
-/// Default implementation using `HashMap` for properties
+/// Default implementation using [`HashMap`] for properties
 ///
 /// Automatically implemented for all `ObFile<HashMap<..>>` types.
 /// Provides identical interface with explicitly named methods.
 pub trait ObFileDefault: ObFile<DefaultProperties> {
-    /// Same as `ObFile::from_string` with default properties type
+    /// Same as [`ObFile::from_string`] with default properties type
     ///
     /// # Errors
-    /// - `Error::InvalidFormat` for malformed frontmatter
-    /// - `Error::Yaml` for invalid YAML syntax
+    /// - [`Error::InvalidFormat`] for malformed frontmatter
+    /// - [`Error::Yaml`] for invalid YAML syntax
     fn from_string_default<P: AsRef<Path>>(text: &str, path: Option<P>) -> Result<Self, Error>;
 
-    /// Same as `ObFile::from_file` with default properties type
+    /// Same as [`ObFile::from_file`] with default properties type
     ///
     /// # Errors
-    /// - `Error::Io` for filesystem errors
-    /// - `Error::FromUtf8` for non-UTF8 content
+    /// - [`Error::Io`] for filesystem errors
+    /// - [`Error::FromUtf8`] for non-UTF8 content
     fn from_file_default<P: AsRef<Path>>(path: P) -> Result<Self, Error>;
-
-    unsafe fn from_file_unchecked_default<P: AsRef<Path>>(path: P) -> Result<Self, Error>;
 }
 
 impl<T> ObFileDefault for T
@@ -147,10 +128,6 @@ where
 
     fn from_file_default<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
         Self::from_file(path)
-    }
-
-    unsafe fn from_file_unchecked_default<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
-        unsafe { Self::from_file_unchecked(path) }
     }
 }
 
@@ -367,18 +344,6 @@ Two test data";
         Ok(())
     }
 
-    pub(crate) fn from_file_with_unchecked<T: ObFile>() -> Result<(), Error> {
-        init_test_logger();
-        let mut temp_file = NamedTempFile::new().unwrap();
-        temp_file.write_all(b"TEST_DATA").unwrap();
-
-        let file = unsafe { T::from_file_unchecked(temp_file.path()).unwrap() };
-        assert_eq!(file.content(), "TEST_DATA");
-        assert_eq!(file.path().unwrap(), temp_file.path());
-        assert_eq!(file.properties(), None);
-        Ok(())
-    }
-
     pub(crate) fn from_file_note_name<T: ObFile>() -> Result<(), Error> {
         init_test_logger();
         let mut temp_file = NamedTempFile::new().unwrap();
@@ -526,12 +491,6 @@ Two test data";
 
             impl_test_for_obfile!(impl_from_file, from_file, $impl_obfile);
             impl_test_for_obfile!(impl_from_file_note_name, from_file_note_name, $impl_obfile);
-
-            impl_test_for_obfile!(
-                impddl_from_file_unchecked,
-                from_file_with_unchecked,
-                $impl_obfile
-            );
 
             impl_test_for_obfile!(
                 impl_from_file_without_properties,

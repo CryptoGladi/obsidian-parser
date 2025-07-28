@@ -1,3 +1,5 @@
+//! On-disk representation of an Obsidian note file
+
 use crate::error::Error;
 use crate::obfile::{ObFile, ResultParse, parse_obfile};
 use serde::de::DeserializeOwned;
@@ -12,7 +14,7 @@ use std::{collections::HashMap, path::PathBuf};
 /// 3. Content is accessed infrequently
 ///
 /// # Tradeoffs vs `ObFileInMemory`
-/// | Characteristic       | `ObFileOnDisk`          | `ObFileInMemory`            |
+/// | Characteristic       | [`ObFileOnDisk`]        | [`ObFileInMemory`]          |
 /// |----------------------|-------------------------|-----------------------------|
 /// | Memory usage         | **Minimal** (~24 bytes) | High (content + properties) |
 /// | File access          | On-demand               | Preloaded                   |
@@ -28,6 +30,8 @@ use std::{collections::HashMap, path::PathBuf};
 /// # Warning
 /// Requires **persistent file access** throughout the object's lifetime. If files are moved/deleted,
 /// calling `content()` or `properties()` will **panic**
+///
+/// [`ObFileInMemory`]: crate::obfile::obfile_in_memory::ObFileInMemory
 #[derive(Debug, Default, PartialEq, Eq, Clone)]
 pub struct ObFileOnDisk<T = HashMap<String, serde_yml::Value>>
 where
@@ -140,11 +144,6 @@ impl<T: DeserializeOwned + Clone> ObFile<T> for ObFileOnDisk<T> {
             path: path_buf,
             phantom: PhantomData,
         })
-    }
-
-    /// Creates instance from path
-    unsafe fn from_file_unchecked<P: AsRef<std::path::Path>>(path: P) -> Result<Self, Error> {
-        Self::from_file(path)
     }
 }
 

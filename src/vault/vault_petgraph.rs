@@ -1,27 +1,28 @@
-//! Graph analysis for Obsidian vaults using `petgraph`
+//! Graph analysis for Obsidian vaults using [`petgraph`]
 //!
 //! This module provides functionality to convert an Obsidian vault into:
-//! - **Directed graphs** (`DiGraph`) where edges represent one-way links
-//! - **Undirected graphs** (`UnGraph`) where connections are bidirectional
+//! - **Directed graphs** ([`DiGraph`]) where edges represent one-way links
+//! - **Undirected graphs** ([`UnGraph`]) where connections are bidirectional
 //!
 //! # Key Features
-//! - Efficient graph construction using parallel processing (with `rayon` feature)
+//! - Efficient graph construction using parallel processing (with [`rayon`] feature)
 //! - Smart link parsing that handles Obsidian's link formats
-//! - Memory-friendly design (prefer `ObFileOnDisk` for large vaults)
+//! - Memory-friendly design (prefer [`ObFileOnDisk`](crate::prelude::ObFileOnDisk) for large vaults)
 //!
-//! # Why `ObFileOnDisk` > `ObFileInMemory`?
-//! `ObFileOnDisk` is recommended for large vaults because:
+//! # Why [`ObFileOnDisk`](crate::prelude::ObFileOnDisk) > [`ObFileInMemory`](crate::prelude::ObFileInMemory)?
+//! [`ObFileOnDisk`](crate::prelude::ObFileOnDisk) is recommended for large vaults because:
 //! 1. **Lower memory usage**: Only reads file content on demand
 //! 2. **Better scalability**: Avoids loading entire vault into RAM
 //! 3. **Faster initialization**: Defers parsing until needed
 //!
-//! Use `ObFileInMemory` only for small vaults or when you need repeated access to content.
+//! Use [`ObFileInMemory`](crate::prelude::ObFileInMemory) only for small vaults or when you
+//! need repeated access to content.
 //!
 //! # Requirements
 //! Enable `petgraph` feature in Cargo.toml:
 //! ```toml
 //! [dependencies]
-//! obsidian-parser = { version = "0.1", features = ["petgraph"] }
+//! obsidian-parser = { version = "0.2", features = ["petgraph"] }
 //! ```
 //!
 //! # Examples
@@ -59,7 +60,7 @@
 //! use obsidian_parser::prelude::*;
 //! use serde::Deserialize;
 //!
-//! #[derive(Deserialize, Default, Clone)]
+//! #[derive(Deserialize, Clone)]
 //! struct NoteProperties {
 //!     importance: Option<usize>,
 //! }
@@ -123,100 +124,103 @@ pub fn parse_links(text: &str) -> impl Iterator<Item = &str> {
 
 impl<T, F> Vault<T, F>
 where
-    T: DeserializeOwned + Default + Clone + Send,
-    F: ObFile<T> + Send + Sync + Clone,
+    T: DeserializeOwned + Clone,
+    F: ObFile<T> + Send + Sync,
 {
     /// Builds edges between nodes in the graph
     ///
-    /// Uses parallel processing when `rayon` feature is enabled
-    #[allow(clippy::unwrap_used)]
+    /// Uses parallel processing when [`rayon`] feature is enabled
+    #[cfg(feature = "rayon")]
     fn build_edges_for_graph<Ty: EdgeType + Send + Sync>(
         graph: &mut Graph<String, (), Ty>,
         files: &[F],
         nodes: &AHashMap<String, usize>,
     ) {
-        #[cfg(feature = "rayon")]
-        {
-            use rayon::prelude::*;
+        use rayon::prelude::*;
 
-            const CHUNK_SIZE: usize = 10;
-
-            #[cfg(feature = "logging")]
-            log::debug!("Using parallel edge builder (rayon enabled)");
-
-            let (tx, rx) = crossbeam_channel::unbounded();
-
-            rayon::scope(|s| {
-                s.spawn(|_| {
-                    files
-                        .into_par_iter()
-                        .chunks(CHUNK_SIZE)
-                        .for_each_with(tx, |tx, files| {
-                            let mut result = Vec::with_capacity(10 * CHUNK_SIZE);
-
-                            for file in files {
-                                #[allow(
-                                    clippy::unwrap_used,
-                                    reason = "When creating a Vault, the path will be mandatory"
-                                )]
-                                let name = file.note_name().unwrap();
-
-                                parse_links(&file.content())
-                                    .filter(|link| nodes.contains_key(*link))
-                                    .map(|link| {
-                                        let node_to = nodes[&name];
-                                        let node_from = nodes[link];
-
-                                        (node_to, node_from)
-                                    })
-                                    .for_each(|x| result.push(x));
-                            }
-
-                            tx.send(result).unwrap();
-                        });
-                });
-
-                s.spawn(|_| {
-                    while let Ok(result) = rx.recv() {
-                        for (node_to, node_from) in result {
-                            graph.add_edge(NodeIndex::new(node_to), NodeIndex::new(node_from), ());
-                        }
-                    }
-                });
-            });
-        }
-
-        #[cfg(not(feature = "rayon"))]
-        {
-            #[cfg(feature = "logging")]
-            log::debug!("Using sequential edge builder");
-
-            for file in files {
-                #[allow(
-                    clippy::unwrap_used,
-                    reason = "When creating a Vault, the path will be mandatory"
-                )]
-                let name = file.note_name().unwrap();
-
-                parse_links(&file.content())
-                    .filter(|link| nodes.contains_key(*link))
-                    .for_each(|link| {
-                        let node_to = nodes[&name];
-                        let node_from = nodes[link];
-
-                        graph.add_edge(NodeIndex::new(node_to), NodeIndex::new(node_from), ());
-                    });
-            }
-        }
+        const CHUNK_SIZE: usize = 10;
 
         #[cfg(feature = "logging")]
-        log::debug!("Graph construction complete. Edges: {}", graph.edge_count());
+        log::debug!("Using parallel edge builder (rayon enabled)");
+
+        let (tx, rx) = crossbeam_channel::unbounded();
+
+        rayon::scope(|s| {
+            s.spawn(|_| {
+                files
+                    .into_par_iter()
+                    .chunks(CHUNK_SIZE)
+                    .for_each_with(tx, |tx, files| {
+                        let mut result = Vec::with_capacity(10 * CHUNK_SIZE);
+
+                        for file in files {
+                            #[allow(
+                                clippy::unwrap_used,
+                                reason = "When creating a Vault, the path will be mandatory"
+                            )]
+                            let name = file.note_name().unwrap();
+
+                            parse_links(&file.content())
+                                .filter(|link| nodes.contains_key(*link))
+                                .map(|link| {
+                                    let node_to = nodes[&name];
+                                    let node_from = nodes[link];
+
+                                    (node_to, node_from)
+                                })
+                                .for_each(|x| result.push(x));
+                        }
+
+                        #[allow(clippy::unwrap_used)]
+                        tx.send(result).unwrap();
+                    });
+            });
+
+            s.spawn(|_| {
+                while let Ok(result) = rx.recv() {
+                    for (node_to, node_from) in result {
+                        graph.add_edge(NodeIndex::new(node_to), NodeIndex::new(node_from), ());
+                    }
+                }
+            });
+        });
+    }
+
+    /// Builds edges between nodes in the graph
+    ///
+    /// Uses parallel processing when [`rayon`] feature is enabled
+    #[cfg(not(feature = "rayon"))]
+    fn build_edges_for_graph<Ty: EdgeType>(
+        graph: &mut Graph<String, (), Ty>,
+        files: &[F],
+        nodes: &AHashMap<String, usize>,
+    ) {
+        #[cfg(feature = "logging")]
+        log::debug!("Using sequential edge builder");
+
+        for file in files {
+            #[allow(
+                clippy::unwrap_used,
+                reason = "When creating a Vault, the path will be mandatory"
+            )]
+            let name = file.note_name().unwrap();
+
+            parse_links(&file.content())
+                .filter(|link| nodes.contains_key(*link))
+                .for_each(|link| {
+                    let node_to = nodes[&name];
+                    let node_from = nodes[link];
+
+                    graph.add_edge(NodeIndex::new(node_to), NodeIndex::new(node_from), ());
+                });
+        }
     }
 
     /// Internal graph builder shared by both graph types
     ///
     /// # Panics
-    /// Panics if duplicate note names exist. Always run `has_unique_filenames()` first!
+    /// Panics if duplicate note names exist.
+    /// Always run [`check_unique_note_name`](Vault::check_unique_note_name) first!
     fn build_graph<Ty: EdgeType + Send + Sync>(&self, graph: &mut Graph<String, (), Ty>) {
         #[cfg(feature = "logging")]
         log::debug!(
@@ -226,7 +230,7 @@ where
         );
 
         assert!(
-            self.has_unique_name_note(),
+            self.check_unique_note_name(),
             "Duplicate note names detected - graph requires unique node identifiers"
         );
 
@@ -243,6 +247,9 @@ where
         }
 
         Self::build_edges_for_graph(graph, &self.files, &nodes);
+
+        #[cfg(feature = "logging")]
+        log::debug!("Graph construction complete. Edges: {}", graph.edge_count());
     }
 
     /// Builds directed graph representing note relationships
@@ -250,8 +257,8 @@ where
     /// Edges point from source note to linked note (A → B means A links to B)
     ///
     /// # Performance Notes
-    /// - For vaults with 1000+ notes, enable `rayon` feature
-    /// - Uses `ObFileOnDisk` for minimal memory footprint
+    /// - For vaults with 1000+ notes, enable [`rayon`] feature
+    /// - Uses [`ObFileOnDisk`](crate::prelude::ObFileOnDisk) for minimal memory footprint
     ///
     /// # Example
     /// ```no_run
@@ -268,6 +275,9 @@ where
     /// influence_scores.sort_by_key(|(_, count)| *count);
     /// println!("Most influential note: {:?}", influence_scores.last().unwrap());
     /// ```
+    ///
+    /// # Other
+    /// See [`get_ungraph`](Vault::get_ungraph)
     #[must_use]
     pub fn get_digraph(&self) -> DiGraph<String, ()> {
         #[cfg(feature = "logging")]
@@ -294,6 +304,9 @@ where
     /// let components = algo::connected_components(&graph);
     /// println!("Found {} knowledge clusters", components);
     /// ```
+    ///
+    /// # Other
+    /// See [`get_digraph`](Vault::get_digraph)
     #[must_use]
     pub fn get_ungraph(&self) -> UnGraph<String, ()> {
         #[cfg(feature = "logging")]

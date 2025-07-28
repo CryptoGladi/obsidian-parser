@@ -3,7 +3,7 @@
 //! Provides functionality for working with entire Obsidian vaults (collections of notes)
 //!
 //! # Performance Recommendations
-//! **Prefer `ObFileOnDisk` over `ObFileInMemory` for large vaults** - it uses significantly less memory
+//! **Prefer [`ObFileOnDisk`]) over [`ObFileInMemory`](crate::prelude::ObFileInMemory) for large vaults** - it uses significantly less memory
 //! by reading files on-demand rather than loading everything into memory upfront.
 //!
 //! # Examples
@@ -15,7 +15,7 @@
 //! let vault = Vault::open_default("/path/to/vault").unwrap();
 //!
 //! // Check for duplicate note names (important for graph operations)
-//! if vault.has_unique_name_note() {
+//! if vault.check_unique_note_name() {
 //!     println!("All note names are unique");
 //! } else {
 //!     println!("Duplicate note names found!");
@@ -73,6 +73,21 @@
 //!     println!("Found {} connected components in knowledge base", components);
 //! }
 //! ```
+//!
+//! ## Use custom [`ObFile`] (example for [`ObFileInMemory`](crate::prelude::ObFileInMemory))
+//! ```no_run
+//! use obsidian_parser::prelude::*;
+//! use serde::Deserialize;
+//!
+//! #[derive(Clone, Default, Deserialize)]
+//! struct NoteProperties {
+//!     created: String,
+//!     tags: Vec<String>,
+//!     priority: u8,
+//! }
+//!
+//! let vault: Vault<NoteProperties, ObFileInMemory<NoteProperties>> = Vault::open("/path/to/vault").unwrap();
+//! ```
 
 #[cfg(feature = "petgraph")]
 pub mod vault_petgraph;
@@ -100,12 +115,12 @@ fn is_hidden(entry: &DirEntry) -> bool {
 
 /// Represents an entire Obsidian vault
 ///
-/// Contains all parsed notes and metadata about the vault. Uses `ObFileOnDisk` by default
+/// Contains all parsed notes and metadata about the vault. Uses [`ObFileOnDisk`] by default
 /// which is optimized for memory efficiency in large vaults.
 ///
 /// # Type Parameters
-/// - `T`: Type for frontmatter properties (must implement `DeserializeOwned + Default`)
-/// - `F`: File representation type (`ObFileOnDisk` recommended for production use)
+/// - `T`: Type for frontmatter properties
+/// - `F`: File representation type
 #[derive(Debug, Default, PartialEq, Eq, Clone)]
 pub struct Vault<T, F = ObFileOnDisk<T>>
 where
@@ -118,6 +133,7 @@ where
     /// Path to vault root directory
     pub path: PathBuf,
 
+    /// Phantom data
     pub phantom: PhantomData<T>,
 }
 
@@ -171,44 +187,10 @@ where
         files.into_iter().filter_map(f).collect()
     }
 
-    pub unsafe fn open_unchecked(path: impl AsRef<Path>) -> Result<Self, Error> {
-        let path_buf = path.as_ref().to_path_buf();
-
-        #[cfg(feature = "logging")]
-        log::debug!("Opening unchecked vault at: {}", path_buf.display());
-
-        check_vault(&path)?;
-        let files_for_parse: Vec<_> = get_files_for_parse(&path);
-
-        #[cfg(feature = "logging")]
-        log::debug!("Found {} markdown files to parse", files_for_parse.len());
-
-        let files = Self::parse_files(&files_for_parse, |file| {
-            match unsafe { F::from_file_unchecked(file.path()) } {
-                Ok(file) => Some(file),
-                Err(e) => {
-                    #[cfg(feature = "logging")]
-                    log::warn!("Failed to unchecked parse {}: {}", file.path().display(), e);
-
-                    None
-                }
-            }
-        });
-
-        #[cfg(feature = "logging")]
-        log::info!("Parsed {} files", files.len());
-
-        Ok(Self {
-            files,
-            path: path_buf,
-            phantom: PhantomData,
-        })
-    }
-
     /// Opens and parses an Obsidian vault
     ///
     /// Recursively scans the directory for Markdown files (.md) and parses them.
-    /// Uses `ObFileOnDisk` by default which is more memory efficient than `ObFileInMemory`.
+    /// Uses [`ObFileOnDisk`] by default which is more memory efficient than [`ObFileInMemory`](crate::prelude::ObFileInMemory).
     ///
     /// # Arguments
     /// * `path` - Path to the vault directory
@@ -220,7 +202,7 @@ where
     /// Files that fail parsing are skipped
     ///
     /// # Memory Considerations
-    /// For vaults with 1000+ notes, prefer `ObFileOnDisk` (default) over `ObFileInMemory` as it:
+    /// For vaults with 1000+ notes, prefer [`ObFileOnDisk`] (default) over [`ObFileInMemory`](crate::prelude::ObFileInMemory) as it:
     /// 1. Uses 90%+ less memory upfront
     /// 2. Only loads file content when accessed
     /// 3. Scales better for large knowledge bases
@@ -256,8 +238,12 @@ where
         })
     }
 
-    /// TODO add test
-    fn get_duplicates_notes(&self) -> Vec<String> {
+    /// Returns duplicated note name
+    ///
+    /// # Other
+    /// See [`check_unique_note_name`](Vault::check_unique_note_name)
+    #[must_use]
+    pub fn get_duplicates_notes(&self) -> Vec<String> {
         #[cfg(feature = "logging")]
         log::debug!(
             "Get duplicates notes in {} ({} files)",
@@ -293,22 +279,25 @@ where
     /// Checks if all note filenames in the vault are unique
     ///
     /// **Critical for graph operations** where notes are identified by name.
-    /// Always run this before calling `get_digraph()` or `get_ungraph()`.
+    /// Always run this before calling [`get_digraph`](Vault::get_digraph) or [`get_ungraph`](Vault::get_ungraph).
     ///
     /// # Returns
     /// `true` if all filenames are unique, `false` otherwise
     ///
     /// # Performance
-    /// Operates in O(n log n) time - safe for large vaults
+    /// Operates in O(n) time - safe for large vaults
+    ///
+    /// # Other
+    /// See [`get_duplicates_notes`](Vault::get_duplicates_notes)
     #[must_use]
-    pub fn has_unique_name_note(&self) -> bool {
+    pub fn check_unique_note_name(&self) -> bool {
         self.get_duplicates_notes().is_empty()
     }
 }
 
 #[allow(clippy::implicit_hasher)]
 impl Vault<HashMap<String, serde_yml::Value>, ObFileOnDisk> {
-    /// Opens vault using default properties (`HashMap`) and `ObFileOnDisk` storage
+    /// Opens vault using default properties ([`HashMap`]) and [`ObFileOnDisk`] storage
     ///
     /// Recommended for most use cases due to its memory efficiency
     ///
@@ -360,14 +349,14 @@ mod tests {
     }
 
     #[test]
-    fn has_unique_name_note() {
+    fn check_unique_note_name() {
         init_test_logger();
         let (vault_path, _) = create_test_vault().unwrap();
 
         let mut vault = Vault::open_default(vault_path.path()).unwrap();
-        assert!(vault.has_unique_name_note());
+        assert!(vault.check_unique_note_name());
 
         vault.files.push(vault.files.first().unwrap().clone());
-        assert!(!vault.has_unique_name_note());
+        assert!(!vault.check_unique_note_name());
     }
 }

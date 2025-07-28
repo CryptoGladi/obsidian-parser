@@ -1,3 +1,5 @@
+//! In-memory representation of an Obsidian note file
+
 use crate::error::Error;
 use crate::obfile::{ObFile, ResultParse, parse_obfile};
 use serde::de::DeserializeOwned;
