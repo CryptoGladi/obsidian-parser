@@ -1,32 +1,30 @@
-use dialoguer::Input;
+use clap::Parser;
 use obsidian_parser::prelude::*;
 use petgraph::algo::connected_components;
-use std::{
-    path::{Path, PathBuf},
-    time::Instant,
-};
+use std::{path::PathBuf, time::Instant};
 
-fn get_path() -> PathBuf {
-    let path = Input::new()
-        .with_prompt("Path to Obsidian vault")
-        .validate_with(|x: &String| {
-            if Path::new(x).is_dir() {
-                return Ok(());
-            }
+fn parse_path(s: &str) -> Result<PathBuf, String> {
+    let path = PathBuf::from(s);
 
-            Err("Is not dir")
-        })
-        .interact_text()
-        .unwrap();
+    if !path.is_dir() {
+        return Err(format!("{} is not dir", path.display()));
+    }
 
-    PathBuf::from(path)
+    Ok(path)
+}
+
+#[derive(Parser, Debug)]
+struct Args {
+    /// Name of the person to greet
+    #[arg(long, value_parser = parse_path)]
+    path: PathBuf,
 }
 
 fn main() {
-    let path = get_path();
+    let args = Args::parse();
 
     let open_vault = Instant::now();
-    let vault = Vault::open_default(&path).unwrap();
+    let vault = Vault::open_default(&args.path).unwrap();
     println!("Time open vault: {:.2?}", open_vault.elapsed());
 
     let get_graph = Instant::now();

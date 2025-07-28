@@ -3,7 +3,7 @@
 //! Provides functionality for working with entire Obsidian vaults (collections of notes)
 //!
 //! # Performance Recommendations
-//! **Prefer `ObFileOnDisk` over `ObFileInMemory` for large vaults** - it uses significantly less memory
+//! **Prefer [`ObFileOnDisk`]) over [`ObFileInMemory`](crate::prelude::ObFileInMemory) for large vaults** - it uses significantly less memory
 //! by reading files on-demand rather than loading everything into memory upfront.
 //!
 //! # Examples
@@ -15,7 +15,7 @@
 //! let vault = Vault::open_default("/path/to/vault").unwrap();
 //!
 //! // Check for duplicate note names (important for graph operations)
-//! if vault.has_unique_filenames() {
+//! if vault.check_unique_note_name() {
 //!     println!("All note names are unique");
 //! } else {
 //!     println!("Duplicate note names found!");
@@ -23,7 +23,7 @@
 //!
 //! // Access parsed files
 //! for file in &vault.files {
-//!     println!("Note: {:?}", file.path);
+//!     println!("Note: {:?}", file.path());
 //! }
 //! ```
 //!
@@ -43,10 +43,12 @@
 //!
 //! // Access custom properties
 //! for file in &vault.files {
+//!     let properties = file.properties().unwrap();
+//!
 //!     println!(
 //!         "Note created at {} with tags: {:?}",
-//!         file.properties().created,
-//!         file.properties().tags
+//!         properties.created,
+//!         properties.tags
 //!     );
 //! }
 //! ```
@@ -71,6 +73,21 @@
 //!     println!("Found {} connected components in knowledge base", components);
 //! }
 //! ```
+//!
+//! ## Use custom [`ObFile`] (example for [`ObFileInMemory`](crate::prelude::ObFileInMemory))
+//! ```no_run
+//! use obsidian_parser::prelude::*;
+//! use serde::Deserialize;
+//!
+//! #[derive(Clone, Default, Deserialize)]
+//! struct NoteProperties {
+//!     created: String,
+//!     tags: Vec<String>,
+//!     priority: u8,
+//! }
+//!
+//! let vault: Vault<NoteProperties, ObFileInMemory<NoteProperties>> = Vault::open("/path/to/vault").unwrap();
+//! ```
 
 #[cfg(feature = "petgraph")]
 pub mod vault_petgraph;
@@ -80,8 +97,8 @@ mod vault_test;
 
 use crate::obfile::ObFile;
 use crate::{error::Error, prelude::ObFileOnDisk};
-use itertools::Itertools;
 use serde::de::DeserializeOwned;
+use std::collections::HashSet;
 use std::{
     collections::HashMap,
     marker::PhantomData,
@@ -98,17 +115,17 @@ fn is_hidden(entry: &DirEntry) -> bool {
 
 /// Represents an entire Obsidian vault
 ///
-/// Contains all parsed notes and metadata about the vault. Uses `ObFileOnDisk` by default
+/// Contains all parsed notes and metadata about the vault. Uses [`ObFileOnDisk`] by default
 /// which is optimized for memory efficiency in large vaults.
 ///
 /// # Type Parameters
-/// - `T`: Type for frontmatter properties (must implement `DeserializeOwned + Default`)
-/// - `F`: File representation type (`ObFileOnDisk` recommended for production use)
+/// - `T`: Type for frontmatter properties
+/// - `F`: File representation type
 #[derive(Debug, Default, PartialEq, Eq, Clone)]
 pub struct Vault<T, F = ObFileOnDisk<T>>
 where
-    T: DeserializeOwned + Default + Send + Clone,
-    F: ObFile<T> + Send + Clone,
+    T: DeserializeOwned + Clone,
+    F: ObFile<T> + Send,
 {
     /// All files in the vault
     pub files: Vec<F>,
@@ -116,18 +133,64 @@ where
     /// Path to vault root directory
     pub path: PathBuf,
 
+    /// Phantom data
     pub phantom: PhantomData<T>,
+}
+
+fn check_vault(path: impl AsRef<Path>) -> Result<(), Error> {
+    let path_buf = path.as_ref().to_path_buf();
+
+    if !path_buf.is_dir() {
+        #[cfg(feature = "logging")]
+        log::error!("Path is not directory: {}", path_buf.display());
+
+        return Err(Error::IsNotDir(path_buf));
+    }
+
+    Ok(())
+}
+
+fn get_files_for_parse<T: FromIterator<DirEntry>>(path: impl AsRef<Path>) -> T {
+    WalkDir::new(path)
+        .min_depth(1)
+        .into_iter()
+        .filter_entry(|x| !is_hidden(x))
+        .filter_map(Result::ok)
+        .filter(|x| {
+            x.path()
+                .extension()
+                .is_some_and(|ext| ext.eq_ignore_ascii_case("md"))
+        })
+        .collect()
 }
 
 impl<T, F> Vault<T, F>
 where
-    T: DeserializeOwned + Default + Clone + Send,
-    F: ObFile<T> + Send + Clone,
+    T: DeserializeOwned + Clone,
+    F: ObFile<T> + Send,
 {
+    #[cfg(feature = "rayon")]
+    fn parse_files<L>(files: &[DirEntry], f: L) -> Vec<F>
+    where
+        L: Fn(&DirEntry) -> Option<F> + Sync + Send,
+    {
+        use rayon::prelude::*;
+
+        files.into_par_iter().filter_map(f).collect()
+    }
+
+    #[cfg(not(feature = "rayon"))]
+    fn parse_files<L>(files: &[DirEntry], f: L) -> Vec<F>
+    where
+        L: Fn(&DirEntry) -> Option<F>,
+    {
+        files.into_iter().filter_map(f).collect()
+    }
+
     /// Opens and parses an Obsidian vault
     ///
     /// Recursively scans the directory for Markdown files (.md) and parses them.
-    /// Uses `ObFileOnDisk` by default which is more memory efficient than `ObFileInMemory`.
+    /// Uses [`ObFileOnDisk`] by default which is more memory efficient than [`ObFileInMemory`](crate::prelude::ObFileInMemory).
     ///
     /// # Arguments
     /// * `path` - Path to the vault directory
@@ -139,7 +202,7 @@ where
     /// Files that fail parsing are skipped
     ///
     /// # Memory Considerations
-    /// For vaults with 1000+ notes, prefer `ObFileOnDisk` (default) over `ObFileInMemory` as it:
+    /// For vaults with 1000+ notes, prefer [`ObFileOnDisk`] (default) over [`ObFileInMemory`](crate::prelude::ObFileInMemory) as it:
     /// 1. Uses 90%+ less memory upfront
     /// 2. Only loads file content when accessed
     /// 3. Scales better for large knowledge bases
@@ -149,73 +212,22 @@ where
         #[cfg(feature = "logging")]
         log::debug!("Opening vault at: {}", path_buf.display());
 
-        if !path_buf.is_dir() {
-            #[cfg(feature = "logging")]
-            log::error!("Path is not directory: {}", path_buf.display());
-
-            return Err(Error::IsNotDir(path_buf));
-        }
-
-        let files_for_parse: Vec<_> = WalkDir::new(path)
-            .min_depth(1)
-            .into_iter()
-            .filter_entry(|x| !is_hidden(x))
-            .filter_map(Result::ok)
-            .filter(|x| {
-                x.path()
-                    .extension()
-                    .is_some_and(|ext| ext.eq_ignore_ascii_case("md"))
-            })
-            .collect();
+        check_vault(&path)?;
+        let files_for_parse: Vec<_> = get_files_for_parse(&path);
 
         #[cfg(feature = "logging")]
         log::debug!("Found {} markdown files to parse", files_for_parse.len());
 
-        let files: Vec<_> = {
-            #[cfg(feature = "rayon")]
-            {
-                use rayon::prelude::*;
+        #[allow(unused_variables)]
+        let files = Self::parse_files(&files_for_parse, |file| match F::from_file(file.path()) {
+            Ok(file) => Some(file),
+            Err(e) => {
+                #[cfg(feature = "logging")]
+                log::warn!("Failed to parse {}: {}", file.path().display(), e);
 
-                files_for_parse
-                    .into_par_iter()
-                    .filter_map(|file| {
-                        #[allow(clippy::manual_ok_err)]
-                        #[allow(clippy::used_underscore_binding)]
-                        match F::from_file(file.path()) {
-                            Ok(file) => Some(file),
-                            Err(_e) => {
-                                #[cfg(feature = "logging")]
-                                log::warn!("Failed to parse {}: {}", &file.path().display(), _e);
-
-                                None
-                            }
-                        }
-                    })
-                    .collect()
+                None
             }
-
-            #[cfg(not(feature = "rayon"))]
-            {
-                files_for_parse
-                    .into_iter()
-                    .filter_map(|entry| {
-                        let path = entry.path();
-
-                        #[allow(clippy::manual_ok_err)]
-                        #[allow(clippy::used_underscore_binding)]
-                        match F::from_file(path) {
-                            Ok(file) => Some(file),
-                            Err(_e) => {
-                                #[cfg(feature = "logging")]
-                                log::warn!("Failed to parse {}: {}", path.display(), _e);
-
-                                None
-                            }
-                        }
-                    })
-                    .collect()
-            }
-        };
+        });
 
         #[cfg(feature = "logging")]
         log::info!("Parsed {} files", files.len());
@@ -227,56 +239,66 @@ where
         })
     }
 
-    /// Checks if all note filenames in the vault are unique
+    /// Returns duplicated note name
     ///
-    /// **Critical for graph operations** where notes are identified by name.
-    /// Always run this before calling `get_digraph()` or `get_ungraph()`.
-    ///
-    /// # Returns
-    /// `true` if all filenames are unique, `false` otherwise
-    ///
-    /// # Performance
-    /// Operates in O(n log n) time - safe for large vaults
+    /// # Other
+    /// See [`check_unique_note_name`](Vault::check_unique_note_name)
     #[must_use]
-    pub fn has_unique_filenames(&self) -> bool {
+    pub fn get_duplicates_notes(&self) -> Vec<String> {
         #[cfg(feature = "logging")]
         log::debug!(
-            "Checking name uniqueness in {} ({} files)",
+            "Get duplicates notes in {} ({} files)",
             self.path.display(),
             self.files.len()
         );
+
+        let mut seens_notes = HashSet::new();
+        let mut duplicated_notes = Vec::new();
 
         #[allow(
             clippy::missing_panics_doc,
             clippy::unwrap_used,
             reason = "In any case, we will have a path to the files"
         )]
-        let count_unique = self
-            .files
-            .iter()
-            .map(|x| x.path().unwrap())
-            .map(|x| x.file_name().unwrap().display().to_string())
-            .sorted()
-            .dedup()
-            .count();
+        for name_note in self.files.iter().map(|x| x.note_name().unwrap()) {
+            if !seens_notes.insert(name_note.clone()) {
+                #[cfg(feature = "logging")]
+                log::trace!("Found duplicate: {name_note}");
 
-        let is_unique = count_unique == self.files.len();
-
-        #[cfg(feature = "logging")]
-        if !is_unique {
-            log::warn!(
-                "[Vault] Found {} duplicate filenames",
-                self.files.len() - count_unique
-            );
+                duplicated_notes.push(name_note);
+            }
         }
 
-        is_unique
+        #[cfg(feature = "logging")]
+        if !duplicated_notes.is_empty() {
+            log::warn!("Found {} duplicate filenames", duplicated_notes.len());
+        }
+
+        duplicated_notes
+    }
+
+    /// Checks if all note filenames in the vault are unique
+    ///
+    /// **Critical for graph operations** where notes are identified by name.
+    /// Always run this before calling [`get_digraph`](Vault::get_digraph) or [`get_ungraph`](Vault::get_ungraph).
+    ///
+    /// # Returns
+    /// `true` if all filenames are unique, `false` otherwise
+    ///
+    /// # Performance
+    /// Operates in O(n) time - safe for large vaults
+    ///
+    /// # Other
+    /// See [`get_duplicates_notes`](Vault::get_duplicates_notes)
+    #[must_use]
+    pub fn check_unique_note_name(&self) -> bool {
+        self.get_duplicates_notes().is_empty()
     }
 }
 
 #[allow(clippy::implicit_hasher)]
 impl Vault<HashMap<String, serde_yml::Value>, ObFileOnDisk> {
-    /// Opens vault using default properties (`HashMap`) and `ObFileOnDisk` storage
+    /// Opens vault using default properties ([`HashMap`]) and [`ObFileOnDisk`] storage
     ///
     /// Recommended for most use cases due to its memory efficiency
     ///
@@ -328,14 +350,14 @@ mod tests {
     }
 
     #[test]
-    fn has_unique_filenames() {
+    fn check_unique_note_name() {
         init_test_logger();
         let (vault_path, _) = create_test_vault().unwrap();
 
         let mut vault = Vault::open_default(vault_path.path()).unwrap();
-        assert!(vault.has_unique_filenames());
+        assert!(vault.check_unique_note_name());
 
         vault.files.push(vault.files.first().unwrap().clone());
-        assert!(!vault.has_unique_filenames());
+        assert!(!vault.check_unique_note_name());
     }
 }
