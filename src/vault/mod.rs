@@ -218,6 +218,7 @@ where
         #[cfg(feature = "logging")]
         log::debug!("Found {} markdown files to parse", files_for_parse.len());
 
+        #[allow(unused_variables)]
         let files = Self::parse_files(&files_for_parse, |file| match F::from_file(file.path()) {
             Ok(file) => Some(file),
             Err(e) => {

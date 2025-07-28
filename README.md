@@ -79,7 +79,7 @@ println!("Knowledge hub: {}", graph[most_connected]);
 Included example `analyzer` calculates connected components in your Obsidian vault's knowledge graph:
 
 ```bash
-cargo run --example analyzer --release --features="petgraph rayon"
+cargo run --example analyzer --release --features="petgraph rayon" -- --path="Path to Obsidian vault"
 ```
 ## Limitations
 ⚠️ **Critical Requirement for Graph Analysis**:
