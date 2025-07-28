@@ -69,10 +69,26 @@ fn vault_open_benchmark(c: &mut Criterion) {
         })
     });
 
+    c.bench_function("vault_open_unchecked_on_disk", |b| {
+        b.iter(|| {
+            let vault: Vault<NoteProperties, ObFileOnDisk<NoteProperties>> =
+                unsafe { Vault::open_unchecked(black_box(path)).unwrap() };
+            black_box(vault);
+        })
+    });
+
     c.bench_function("vault_open_in_memory", |b| {
         b.iter(|| {
             let vault: Vault<NoteProperties, ObFileInMemory<NoteProperties>> =
                 Vault::open(black_box(path)).unwrap();
+            black_box(vault);
+        })
+    });
+
+    c.bench_function("vault_open_unchecked_in_memory", |b| {
+        b.iter(|| {
+            let vault: Vault<NoteProperties, ObFileInMemory<NoteProperties>> =
+                unsafe { Vault::open_unchecked(black_box(path)).unwrap() };
             black_box(vault);
         })
     });

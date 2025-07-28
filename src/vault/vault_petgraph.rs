@@ -72,7 +72,7 @@
 //!
 //! // Remove low-importance nodes
 //! graph.retain_nodes(|g, n| {
-//!     vault.files[n.index()].properties().importance.unwrap_or(0) > 5
+//!     vault.files[n.index()].properties().unwrap().importance.unwrap_or(0) > 5
 //! });
 //! ```
 
@@ -121,23 +121,6 @@ pub fn parse_links(text: &str) -> impl Iterator<Item = &str> {
     })
 }
 
-#[allow(
-    clippy::unwrap_used,
-    reason = "When creating a Vault, the path will be mandatory"
-)]
-fn get_name_for_note<T>(obfile: &impl ObFile<T>) -> String
-where
-    T: DeserializeOwned + Default + Clone + Send,
-{
-    obfile
-        .path()
-        .unwrap()
-        .file_stem()
-        .unwrap()
-        .to_string_lossy()
-        .to_string()
-}
-
 impl<T, F> Vault<T, F>
 where
     T: DeserializeOwned + Default + Clone + Send,
@@ -172,7 +155,11 @@ where
                             let mut result = Vec::with_capacity(10 * CHUNK_SIZE);
 
                             for file in files {
-                                let name = get_name_for_note(file);
+                                #[allow(
+                                    clippy::unwrap_used,
+                                    reason = "When creating a Vault, the path will be mandatory"
+                                )]
+                                let name = file.note_name().unwrap();
 
                                 parse_links(&file.content())
                                     .filter(|link| nodes.contains_key(*link))
@@ -205,7 +192,11 @@ where
             log::debug!("Using sequential edge builder");
 
             for file in files {
-                let name = get_name_for_note(file);
+                #[allow(
+                    clippy::unwrap_used,
+                    reason = "When creating a Vault, the path will be mandatory"
+                )]
+                let name = file.note_name().unwrap();
 
                 parse_links(&file.content())
                     .filter(|link| nodes.contains_key(*link))
@@ -235,13 +226,17 @@ where
         );
 
         assert!(
-            self.has_unique_filenames(),
+            self.has_unique_name_note(),
             "Duplicate note names detected - graph requires unique node identifiers"
         );
 
         let mut nodes = AHashMap::default();
         for file in &self.files {
-            let name = get_name_for_note(file);
+            #[allow(
+                clippy::unwrap_used,
+                reason = "When creating a Vault, the path will be mandatory"
+            )]
+            let name = file.note_name().unwrap();
 
             let node = graph.add_node(name.clone());
             nodes.insert(name, node.index());

@@ -31,15 +31,15 @@ use std::{collections::HashMap, path::PathBuf};
 #[derive(Debug, Default, PartialEq, Eq, Clone)]
 pub struct ObFileOnDisk<T = HashMap<String, serde_yml::Value>>
 where
-    T: DeserializeOwned + Default + Clone + Send,
+    T: DeserializeOwned + Clone,
 {
     /// Absolute path to the source Markdown file
-    pub path: PathBuf,
+    path: PathBuf,
 
     phantom: PhantomData<T>,
 }
 
-impl<T: DeserializeOwned + Default + Clone + Send> ObFile<T> for ObFileOnDisk<T> {
+impl<T: DeserializeOwned + Clone> ObFile<T> for ObFileOnDisk<T> {
     /// Returns the note's content body (without frontmatter)
     ///
     /// # Panics
@@ -88,7 +88,7 @@ impl<T: DeserializeOwned + Default + Clone + Send> ObFile<T> for ObFileOnDisk<T>
         clippy::unwrap_used,
         reason = "The documentation states that panics are possible"
     )]
-    fn properties(&self) -> T {
+    fn properties(&self) -> Option<T> {
         let data = std::fs::read(&self.path).unwrap();
         let raw_text = String::from_utf8(data).unwrap();
 
@@ -100,13 +100,13 @@ impl<T: DeserializeOwned + Default + Clone + Send> ObFile<T> for ObFileOnDisk<T>
                 #[cfg(feature = "logging")]
                 log::trace!("Frontmatter detected, parsing properties");
 
-                serde_yml::from_str(properties).unwrap()
+                Some(serde_yml::from_str(properties).unwrap())
             }
             ResultParse::WithoutProperties => {
                 #[cfg(feature = "logging")]
                 log::trace!("No frontmatter found, storing raw content");
 
-                T::default()
+                None
             }
         }
     }
@@ -140,6 +140,11 @@ impl<T: DeserializeOwned + Default + Clone + Send> ObFile<T> for ObFileOnDisk<T>
             path: path_buf,
             phantom: PhantomData,
         })
+    }
+
+    /// Creates instance from path
+    unsafe fn from_file_unchecked<P: AsRef<std::path::Path>>(path: P) -> Result<Self, Error> {
+        Self::from_file(path)
     }
 }
 
@@ -206,6 +211,6 @@ mod tests {
 
         let file = ObFileOnDisk::from_file_default(test_file.path()).unwrap();
         assert_eq!(file.content(), "DATA");
-        assert_eq!(file.properties()["time"], "now");
+        assert_eq!(file.properties().unwrap()["time"], "now");
     }
 }

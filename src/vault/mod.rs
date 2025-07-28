@@ -15,7 +15,7 @@
 //! let vault = Vault::open_default("/path/to/vault").unwrap();
 //!
 //! // Check for duplicate note names (important for graph operations)
-//! if vault.has_unique_filenames() {
+//! if vault.has_unique_name_note() {
 //!     println!("All note names are unique");
 //! } else {
 //!     println!("Duplicate note names found!");
@@ -23,7 +23,7 @@
 //!
 //! // Access parsed files
 //! for file in &vault.files {
-//!     println!("Note: {:?}", file.path);
+//!     println!("Note: {:?}", file.path());
 //! }
 //! ```
 //!
@@ -43,10 +43,12 @@
 //!
 //! // Access custom properties
 //! for file in &vault.files {
+//!     let properties = file.properties().unwrap();
+//!
 //!     println!(
 //!         "Note created at {} with tags: {:?}",
-//!         file.properties().created,
-//!         file.properties().tags
+//!         properties.created,
+//!         properties.tags
 //!     );
 //! }
 //! ```
@@ -80,8 +82,8 @@ mod vault_test;
 
 use crate::obfile::ObFile;
 use crate::{error::Error, prelude::ObFileOnDisk};
-use itertools::Itertools;
 use serde::de::DeserializeOwned;
+use std::collections::HashSet;
 use std::{
     collections::HashMap,
     marker::PhantomData,
@@ -107,8 +109,8 @@ fn is_hidden(entry: &DirEntry) -> bool {
 #[derive(Debug, Default, PartialEq, Eq, Clone)]
 pub struct Vault<T, F = ObFileOnDisk<T>>
 where
-    T: DeserializeOwned + Default + Send + Clone,
-    F: ObFile<T> + Send + Clone,
+    T: DeserializeOwned + Clone,
+    F: ObFile<T> + Send,
 {
     /// All files in the vault
     pub files: Vec<F>,
@@ -119,11 +121,90 @@ where
     pub phantom: PhantomData<T>,
 }
 
+fn check_vault(path: impl AsRef<Path>) -> Result<(), Error> {
+    let path_buf = path.as_ref().to_path_buf();
+
+    if !path_buf.is_dir() {
+        #[cfg(feature = "logging")]
+        log::error!("Path is not directory: {}", path_buf.display());
+
+        return Err(Error::IsNotDir(path_buf));
+    }
+
+    Ok(())
+}
+
+fn get_files_for_parse<T: FromIterator<DirEntry>>(path: impl AsRef<Path>) -> T {
+    WalkDir::new(path)
+        .min_depth(1)
+        .into_iter()
+        .filter_entry(|x| !is_hidden(x))
+        .filter_map(Result::ok)
+        .filter(|x| {
+            x.path()
+                .extension()
+                .is_some_and(|ext| ext.eq_ignore_ascii_case("md"))
+        })
+        .collect()
+}
+
 impl<T, F> Vault<T, F>
 where
-    T: DeserializeOwned + Default + Clone + Send,
-    F: ObFile<T> + Send + Clone,
+    T: DeserializeOwned + Clone,
+    F: ObFile<T> + Send,
 {
+    #[cfg(feature = "rayon")]
+    fn parse_files<L>(files: &[DirEntry], f: L) -> Vec<F>
+    where
+        L: Fn(&DirEntry) -> Option<F> + Sync + Send,
+    {
+        use rayon::prelude::*;
+
+        files.into_par_iter().filter_map(f).collect()
+    }
+
+    #[cfg(not(feature = "rayon"))]
+    fn parse_files<L>(files: &[DirEntry], f: L) -> Vec<F>
+    where
+        L: Fn(&DirEntry) -> Option<F>,
+    {
+        files.into_iter().filter_map(f).collect()
+    }
+
+    pub unsafe fn open_unchecked(path: impl AsRef<Path>) -> Result<Self, Error> {
+        let path_buf = path.as_ref().to_path_buf();
+
+        #[cfg(feature = "logging")]
+        log::debug!("Opening unchecked vault at: {}", path_buf.display());
+
+        check_vault(&path)?;
+        let files_for_parse: Vec<_> = get_files_for_parse(&path);
+
+        #[cfg(feature = "logging")]
+        log::debug!("Found {} markdown files to parse", files_for_parse.len());
+
+        let files = Self::parse_files(&files_for_parse, |file| {
+            match unsafe { F::from_file_unchecked(file.path()) } {
+                Ok(file) => Some(file),
+                Err(e) => {
+                    #[cfg(feature = "logging")]
+                    log::warn!("Failed to unchecked parse {}: {}", file.path().display(), e);
+
+                    None
+                }
+            }
+        });
+
+        #[cfg(feature = "logging")]
+        log::info!("Parsed {} files", files.len());
+
+        Ok(Self {
+            files,
+            path: path_buf,
+            phantom: PhantomData,
+        })
+    }
+
     /// Opens and parses an Obsidian vault
     ///
     /// Recursively scans the directory for Markdown files (.md) and parses them.
@@ -149,73 +230,21 @@ where
         #[cfg(feature = "logging")]
         log::debug!("Opening vault at: {}", path_buf.display());
 
-        if !path_buf.is_dir() {
-            #[cfg(feature = "logging")]
-            log::error!("Path is not directory: {}", path_buf.display());
-
-            return Err(Error::IsNotDir(path_buf));
-        }
-
-        let files_for_parse: Vec<_> = WalkDir::new(path)
-            .min_depth(1)
-            .into_iter()
-            .filter_entry(|x| !is_hidden(x))
-            .filter_map(Result::ok)
-            .filter(|x| {
-                x.path()
-                    .extension()
-                    .is_some_and(|ext| ext.eq_ignore_ascii_case("md"))
-            })
-            .collect();
+        check_vault(&path)?;
+        let files_for_parse: Vec<_> = get_files_for_parse(&path);
 
         #[cfg(feature = "logging")]
         log::debug!("Found {} markdown files to parse", files_for_parse.len());
 
-        let files: Vec<_> = {
-            #[cfg(feature = "rayon")]
-            {
-                use rayon::prelude::*;
+        let files = Self::parse_files(&files_for_parse, |file| match F::from_file(file.path()) {
+            Ok(file) => Some(file),
+            Err(e) => {
+                #[cfg(feature = "logging")]
+                log::warn!("Failed to parse {}: {}", file.path().display(), e);
 
-                files_for_parse
-                    .into_par_iter()
-                    .filter_map(|file| {
-                        #[allow(clippy::manual_ok_err)]
-                        #[allow(clippy::used_underscore_binding)]
-                        match F::from_file(file.path()) {
-                            Ok(file) => Some(file),
-                            Err(_e) => {
-                                #[cfg(feature = "logging")]
-                                log::warn!("Failed to parse {}: {}", &file.path().display(), _e);
-
-                                None
-                            }
-                        }
-                    })
-                    .collect()
+                None
             }
-
-            #[cfg(not(feature = "rayon"))]
-            {
-                files_for_parse
-                    .into_iter()
-                    .filter_map(|entry| {
-                        let path = entry.path();
-
-                        #[allow(clippy::manual_ok_err)]
-                        #[allow(clippy::used_underscore_binding)]
-                        match F::from_file(path) {
-                            Ok(file) => Some(file),
-                            Err(_e) => {
-                                #[cfg(feature = "logging")]
-                                log::warn!("Failed to parse {}: {}", path.display(), _e);
-
-                                None
-                            }
-                        }
-                    })
-                    .collect()
-            }
-        };
+        });
 
         #[cfg(feature = "logging")]
         log::info!("Parsed {} files", files.len());
@@ -225,6 +254,40 @@ where
             path: path_buf,
             phantom: PhantomData,
         })
+    }
+
+    /// TODO add test
+    fn get_duplicates_notes(&self) -> Vec<String> {
+        #[cfg(feature = "logging")]
+        log::debug!(
+            "Get duplicates notes in {} ({} files)",
+            self.path.display(),
+            self.files.len()
+        );
+
+        let mut seens_notes = HashSet::new();
+        let mut duplicated_notes = Vec::new();
+
+        #[allow(
+            clippy::missing_panics_doc,
+            clippy::unwrap_used,
+            reason = "In any case, we will have a path to the files"
+        )]
+        for name_note in self.files.iter().map(|x| x.note_name().unwrap()) {
+            if !seens_notes.insert(name_note.clone()) {
+                #[cfg(feature = "logging")]
+                log::trace!("Found duplicate: {name_note}");
+
+                duplicated_notes.push(name_note);
+            }
+        }
+
+        #[cfg(feature = "logging")]
+        if !duplicated_notes.is_empty() {
+            log::warn!("Found {} duplicate filenames", duplicated_notes.len());
+        }
+
+        duplicated_notes
     }
 
     /// Checks if all note filenames in the vault are unique
@@ -238,39 +301,8 @@ where
     /// # Performance
     /// Operates in O(n log n) time - safe for large vaults
     #[must_use]
-    pub fn has_unique_filenames(&self) -> bool {
-        #[cfg(feature = "logging")]
-        log::debug!(
-            "Checking name uniqueness in {} ({} files)",
-            self.path.display(),
-            self.files.len()
-        );
-
-        #[allow(
-            clippy::missing_panics_doc,
-            clippy::unwrap_used,
-            reason = "In any case, we will have a path to the files"
-        )]
-        let count_unique = self
-            .files
-            .iter()
-            .map(|x| x.path().unwrap())
-            .map(|x| x.file_name().unwrap().display().to_string())
-            .sorted()
-            .dedup()
-            .count();
-
-        let is_unique = count_unique == self.files.len();
-
-        #[cfg(feature = "logging")]
-        if !is_unique {
-            log::warn!(
-                "[Vault] Found {} duplicate filenames",
-                self.files.len() - count_unique
-            );
-        }
-
-        is_unique
+    pub fn has_unique_name_note(&self) -> bool {
+        self.get_duplicates_notes().is_empty()
     }
 }
 
@@ -328,14 +360,14 @@ mod tests {
     }
 
     #[test]
-    fn has_unique_filenames() {
+    fn has_unique_name_note() {
         init_test_logger();
         let (vault_path, _) = create_test_vault().unwrap();
 
         let mut vault = Vault::open_default(vault_path.path()).unwrap();
-        assert!(vault.has_unique_filenames());
+        assert!(vault.has_unique_name_note());
 
         vault.files.push(vault.files.first().unwrap().clone());
-        assert!(!vault.has_unique_filenames());
+        assert!(!vault.has_unique_name_note());
     }
 }

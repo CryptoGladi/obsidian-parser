@@ -21,19 +21,19 @@ use std::{collections::HashMap, path::PathBuf};
 #[derive(Debug, Default, PartialEq, Eq, Clone)]
 pub struct ObFileInMemory<T = HashMap<String, serde_yml::Value>>
 where
-    T: DeserializeOwned + Default + Clone + Send,
+    T: DeserializeOwned + Clone,
 {
     /// Markdown content body (without frontmatter)
-    pub content: String,
+    content: String,
 
     /// Source file path (if loaded from disk)
-    pub path: Option<PathBuf>,
+    path: Option<PathBuf>,
 
     /// Parsed frontmatter properties
-    pub properties: T,
+    properties: Option<T>,
 }
 
-impl<T: DeserializeOwned + Default + Clone + Send> ObFile<T> for ObFileInMemory<T> {
+impl<T: DeserializeOwned + Clone> ObFile<T> for ObFileInMemory<T> {
     #[inline]
     fn content(&self) -> String {
         self.content.clone()
@@ -45,7 +45,7 @@ impl<T: DeserializeOwned + Default + Clone + Send> ObFile<T> for ObFileInMemory<
     }
 
     #[inline]
-    fn properties(&self) -> T {
+    fn properties(&self) -> Option<T> {
         self.properties.clone()
     }
 
@@ -80,7 +80,7 @@ impl<T: DeserializeOwned + Default + Clone + Send> ObFile<T> for ObFileInMemory<
     /// Content"#;
     ///
     /// let file: ObFileInMemory<NoteProperties> = ObFileInMemory::from_string(note, None::<&str>).unwrap();
-    /// assert_eq!(file.properties().title, "Example");
+    /// assert_eq!(file.properties().unwrap().title, "Example");
     /// assert_eq!(file.content(), "Content");
     /// ```
     fn from_string<P: AsRef<std::path::Path>>(
@@ -108,7 +108,7 @@ impl<T: DeserializeOwned + Default + Clone + Send> ObFile<T> for ObFileInMemory<
 
                 Ok(Self {
                     content: content.to_string(),
-                    properties: serde_yml::from_str(properties)?,
+                    properties: Some(serde_yml::from_str(properties)?),
                     path: path_buf,
                 })
             }
@@ -119,7 +119,7 @@ impl<T: DeserializeOwned + Default + Clone + Send> ObFile<T> for ObFileInMemory<
                 Ok(Self {
                     content: raw_text.to_string(),
                     path: path_buf,
-                    properties: T::default(),
+                    properties: None,
                 })
             }
         }

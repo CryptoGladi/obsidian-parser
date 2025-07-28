@@ -49,7 +49,7 @@
 //! let vault = Vault::open_default("/path/to/vault").unwrap();
 //!
 //! // Check for duplicate note names
-//! if !vault.has_unique_filenames() {
+//! if !vault.has_unique_name_note() {
 //!     eprintln!("Duplicate note names detected!");
 //! }
 //! ```
@@ -91,7 +91,6 @@
 //!
 //! Graph nodes use note names, edges represent links (`[[...]]`).
 
-#![forbid(unsafe_code)]
 #![warn(clippy::pedantic)]
 #![warn(clippy::cargo)]
 #![warn(clippy::nursery)]

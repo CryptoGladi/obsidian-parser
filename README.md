@@ -15,7 +15,7 @@ Blazingly fast Rust library for parsing and analyzing [Obsidian](https://obsidia
 Add to `Cargo.toml`:
 ```toml
 [dependencies]
-obsidian-parser = "0.1"
+obsidian-parser = "0.2"
 ```
 ### Basic Usage
 *  Parsing
@@ -42,8 +42,10 @@ let note_with_serde: ObFileInMemory<NoteProperties> = ObFileInMemory::from_file(
 * Vault
 ```rust
 use obsidian_parser::prelude::*;
+
 // Open vault (defaults to on-disk representation for efficiency)
 let vault = Vault::open_default("/path/to/vault")?;
+
 // Check for duplicate note names (critical for graph operations)
 if !vault.has_unique_filenames() {
     eprintln!("Duplicate note names detected!");
@@ -56,8 +58,8 @@ for file in &vault.files {
 ### Graph Analysis (requires `petgraph` feature)
 Enable in `Cargo.toml`:
 ```toml
-obsidian-parser = { version = "0.1", features = ["petgraph"] }
-# obsidian-parser = { version = "0.1", features = ["petgraph", "rayon"] } is fast
+obsidian-parser = { version = "0.2", features = ["petgraph"] }
+# obsidian-parser = { version = "0.2", features = ["petgraph", "rayon"] } is fast
 ```
 Then:
 ```rust
@@ -80,11 +82,11 @@ Included example `analyzer` calculates connected components in your Obsidian vau
 cargo run --example analyzer --release --features="petgraph rayon"
 ```
 ## Limitations
-⚠️ **Critical Requirement for Graph Analysis**:  
-All note filenames must be unique. Use `vault.has_unique_filenames()` to verify before calling `get_digraph()` or `get_ungraph()`.  
+⚠️ **Critical Requirement for Graph Analysis**:
+All note filenames must be unique. Use `vault.has_unique_filenames()` to verify before calling `get_digraph()` or `get_ungraph()`.
 Why? Notes are identified by filename in graph operations. Duplicates will cause incorrect graph construction.
 ## Performance
-My PC AMD Ryzen 5 3600X with NVMe SSD
+My PC AMD Ryzen 5 3600X with `NVMe` SSD
 | Operation               | Time       |
 |-------------------------|------------|
 | Vault initialization    | 741.92 µs  |
