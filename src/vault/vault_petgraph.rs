@@ -36,7 +36,7 @@
 //! let vault = Vault::open_default("/path/to/vault").unwrap();
 //!
 //! // Build directed graph
-//! let graph = vault.get_digraph();
+//! let graph = vault.get_digraph().unwrap();
 //!
 //! // Export to Graphviz format
 //! println!("{:?}", Dot::with_config(&graph, &[Config::EdgeNoLabel]));
@@ -48,7 +48,7 @@
 //! use petgraph::algo;
 //!
 //! let vault = Vault::open_default("/path/to/vault").unwrap();
-//! let graph = vault.get_ungraph();
+//! let graph = vault.get_ungraph().unwrap();
 //!
 //! // Find knowledge clusters
 //! let components = algo::connected_components(&graph);
@@ -69,7 +69,7 @@
 //! let vault: Vault<NoteProperties> = Vault::open("/path/to/vault").unwrap();
 //!
 //! // Build graph filtering by property
-//! let mut graph = vault.get_digraph();
+//! let mut graph = vault.get_digraph().unwrap();
 //!
 //! // Remove low-importance nodes
 //! graph.retain_nodes(|g, n| {
@@ -78,6 +78,7 @@
 //! ```
 
 use super::Vault;
+use crate::error::Error;
 use crate::obfile::ObFile;
 use ahash::AHashMap;
 use petgraph::graph::NodeIndex;
@@ -221,7 +222,10 @@ where
     /// # Panics
     /// Panics if duplicate note names exist.
     /// Always run [`check_unique_note_name`](Vault::check_unique_note_name) first!
-    fn build_graph<Ty: EdgeType + Send + Sync>(&self, graph: &mut Graph<String, (), Ty>) {
+    fn build_graph<Ty: EdgeType + Send + Sync>(
+        &self,
+        graph: &mut Graph<String, (), Ty>,
+    ) -> Result<(), Error> {
         #[cfg(feature = "logging")]
         log::debug!(
             "Building graph for vault: {} ({} files)",
@@ -229,10 +233,10 @@ where
             self.files.len()
         );
 
-        assert!(
-            self.check_unique_note_name(),
-            "Duplicate note names detected - graph requires unique node identifiers"
-        );
+        let duplicated_notes = self.get_duplicates_notes();
+        if !duplicated_notes.is_empty() {
+            return Err(Error::DuplicateNoteNamesDetected(duplicated_notes));
+        }
 
         let mut nodes = AHashMap::default();
         for file in &self.files {
@@ -250,6 +254,8 @@ where
 
         #[cfg(feature = "logging")]
         log::debug!("Graph construction complete. Edges: {}", graph.edge_count());
+
+        Ok(())
     }
 
     /// Builds directed graph representing note relationships
@@ -265,7 +271,7 @@ where
     /// # use obsidian_parser::prelude::*;
     /// # use petgraph::Direction;
     /// # let vault = Vault::open_default("test_vault").unwrap();
-    /// let graph = vault.get_digraph();
+    /// let graph = vault.get_digraph().unwrap();
     ///
     /// // Analyze note influence
     /// let mut influence_scores: Vec<_> = graph.node_indices()
@@ -279,14 +285,14 @@ where
     /// # Other
     /// See [`get_ungraph`](Vault::get_ungraph)
     #[must_use]
-    pub fn get_digraph(&self) -> DiGraph<String, ()> {
+    pub fn get_digraph(&self) -> Result<DiGraph<String, ()>, Error> {
         #[cfg(feature = "logging")]
         log::debug!("Building directed graph");
 
         let mut graph = DiGraph::new();
-        self.build_graph(&mut graph);
+        self.build_graph(&mut graph)?;
 
-        graph
+        Ok(graph)
     }
 
     /// Builds undirected graph showing note connections
@@ -298,7 +304,7 @@ where
     /// # use obsidian_parser::prelude::*;
     /// # use petgraph::algo;
     /// # let vault = Vault::open_default("test_vault").unwrap();
-    /// let graph = vault.get_ungraph();
+    /// let graph = vault.get_ungraph().unwrap();
     ///
     /// // Find connected components
     /// let components = algo::connected_components(&graph);
@@ -308,14 +314,14 @@ where
     /// # Other
     /// See [`get_digraph`](Vault::get_digraph)
     #[must_use]
-    pub fn get_ungraph(&self) -> UnGraph<String, ()> {
+    pub fn get_ungraph(&self) -> Result<UnGraph<String, ()>, Error> {
         #[cfg(feature = "logging")]
         log::debug!("Building undirected graph");
 
         let mut graph = UnGraph::new_undirected();
-        self.build_graph(&mut graph);
+        self.build_graph(&mut graph)?;
 
-        graph
+        Ok(graph)
     }
 }
 
@@ -331,7 +337,7 @@ mod tests {
         let (vault_path, files) = create_test_vault().unwrap();
         let vault = Vault::open_default(vault_path.path()).unwrap();
 
-        let graph = vault.get_digraph();
+        let graph = vault.get_digraph().unwrap();
         assert_eq!(graph.edge_count(), 1);
         assert_eq!(graph.node_count(), files.len());
     }
@@ -342,7 +348,7 @@ mod tests {
         let (vault_path, files) = create_test_vault().unwrap();
         let vault = Vault::open_default(vault_path.path()).unwrap();
 
-        let graph = vault.get_ungraph();
+        let graph = vault.get_ungraph().unwrap();
         assert_eq!(graph.edge_count(), 1);
         assert_eq!(graph.node_count(), files.len());
     }

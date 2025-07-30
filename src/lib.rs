@@ -62,7 +62,7 @@
 //!     use petgraph::dot::{Dot, Config};
 //!
 //!     let vault = Vault::open_default("/path/to/vault").unwrap();
-//!     let graph = vault.get_digraph();
+//!     let graph = vault.get_digraph().unwrap();
 //!     
 //!     // Export to Graphviz format
 //!     println!("{:?}", Dot::with_config(&graph, &[Config::EdgeNoLabel]));

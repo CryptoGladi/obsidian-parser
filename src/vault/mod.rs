@@ -63,7 +63,7 @@
 //!     let vault = Vault::open_default("/path/to/vault").unwrap();
 //!     
 //!     // Build directed graph
-//!     let graph = vault.get_digraph();
+//!     let graph = vault.get_digraph().unwrap();
 //!     println!("Graph visualization:\n{:?}",
 //!         Dot::with_config(&graph, &[Config::EdgeNoLabel])
 //!     );

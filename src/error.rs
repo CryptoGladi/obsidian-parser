@@ -72,7 +72,7 @@ pub enum Error {
     /// # use obsidian_parser::prelude::*;
     /// # use std::fs::File;
     /// # use std::io::Write;
-    ///
+    /// #
     /// // Create invalid UTF-8 file
     /// let mut f = File::create("invalid.md").unwrap();
     /// f.write_all(&[0xff, 0xfe, 0xfd]).unwrap();
@@ -82,4 +82,24 @@ pub enum Error {
     /// ```
     #[error("File is not is not encoded in UTF-8")]
     FromUtf8(#[from] std::string::FromUtf8Error),
+
+    /// Duplicate note names detected
+    ///
+    /// When receiving a graph, there is a mandatory condition - each note must have a unique name.
+    ///
+    /// # Example
+    /// ```no_run
+    /// # use obsidian_parser::prelude::*;
+    /// # use obsidian_parser::error::Error;
+    /// let vault = Vault::open_default("/path/to/vault").unwrap();
+    ///
+    /// // There are notes with the same name in our Vault
+    /// assert!(!vault.check_unique_note_name());
+    ///
+    /// let result = vault.get_digraph();
+    /// assert!(matches!(result, Err(Error::DuplicateNoteNamesDetected(_))));
+    /// ```
+    #[cfg(feature = "petgraph")]
+    #[error("Duplicate note names detected: `{0:?}`")]
+    DuplicateNoteNamesDetected(Vec<String>),
 }
