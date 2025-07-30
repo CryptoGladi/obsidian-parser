@@ -37,8 +37,8 @@ where
 
 impl<T: DeserializeOwned + Clone> ObFile<T> for ObFileInMemory<T> {
     #[inline]
-    fn content(&self) -> String {
-        self.content.clone()
+    fn content(&self) -> Result<String, Error> {
+        Ok(self.content.clone())
     }
 
     #[inline]
@@ -47,8 +47,8 @@ impl<T: DeserializeOwned + Clone> ObFile<T> for ObFileInMemory<T> {
     }
 
     #[inline]
-    fn properties(&self) -> Option<T> {
-        self.properties.clone()
+    fn properties(&self) -> Result<Option<T>, Error> {
+        Ok(self.properties.clone())
     }
 
     /// Parses a string into an in-memory Obsidian note representation
@@ -82,8 +82,10 @@ impl<T: DeserializeOwned + Clone> ObFile<T> for ObFileInMemory<T> {
     /// Content"#;
     ///
     /// let file: ObFileInMemory<NoteProperties> = ObFileInMemory::from_string(note, None::<&str>).unwrap();
-    /// assert_eq!(file.properties().unwrap().title, "Example");
-    /// assert_eq!(file.content(), "Content");
+    /// let properties = file.properties().unwrap().unwrap();
+    ///
+    /// assert_eq!(properties.title, "Example");
+    /// assert_eq!(file.content().unwrap(), "Content");
     /// ```
     fn from_string<P: AsRef<std::path::Path>>(
         raw_text: &str,

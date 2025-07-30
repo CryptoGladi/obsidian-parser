@@ -73,7 +73,7 @@
 //!
 //! // Remove low-importance nodes
 //! graph.retain_nodes(|g, n| {
-//!     vault.files[n.index()].properties().unwrap().importance.unwrap_or(0) > 5
+//!     vault.files[n.index()].properties().unwrap().unwrap().importance.unwrap_or(0) > 5
 //! });
 //! ```
 
@@ -161,7 +161,7 @@ where
                             )]
                             let name = file.note_name().unwrap();
 
-                            parse_links(&file.content())
+                            parse_links(&file.content().expect("read contect error"))
                                 .filter(|link| nodes.contains_key(*link))
                                 .map(|link| {
                                     let node_to = nodes[&name];
@@ -282,9 +282,11 @@ where
     /// println!("Most influential note: {:?}", influence_scores.last().unwrap());
     /// ```
     ///
+    /// # Errors
+    /// - [`Error::DuplicateNoteNamesDetected`]
+    ///
     /// # Other
     /// See [`get_ungraph`](Vault::get_ungraph)
-    #[must_use]
     pub fn get_digraph(&self) -> Result<DiGraph<String, ()>, Error> {
         #[cfg(feature = "logging")]
         log::debug!("Building directed graph");
@@ -311,9 +313,11 @@ where
     /// println!("Found {} knowledge clusters", components);
     /// ```
     ///
+    /// # Errors
+    /// - [`Error::DuplicateNoteNamesDetected`]
+    ///
     /// # Other
     /// See [`get_digraph`](Vault::get_digraph)
-    #[must_use]
     pub fn get_ungraph(&self) -> Result<UnGraph<String, ()>, Error> {
         #[cfg(feature = "logging")]
         log::debug!("Building undirected graph");

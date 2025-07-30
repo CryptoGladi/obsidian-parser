@@ -27,8 +27,8 @@
 //! // Parse single file with `HashMap`
 //! let note_hashmap = ObFileInMemory::from_file_default("note.md").unwrap();
 //!
-//! println!("Content: {}", note_hashmap.content());
-//! println!("Properties: {:#?}", note_hashmap.properties());
+//! println!("Content: {}", note_hashmap.content().unwrap());
+//! println!("Properties: {:#?}", note_hashmap.properties().unwrap().unwrap());
 //!
 //! // Parse single file with custom struct
 //! #[derive(Clone, Default, Deserialize)]

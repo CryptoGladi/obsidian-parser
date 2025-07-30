@@ -43,7 +43,7 @@
 //!
 //! // Access custom properties
 //! for file in &vault.files {
-//!     let properties = file.properties().unwrap();
+//!     let properties = file.properties().unwrap().unwrap();
 //!
 //!     println!(
 //!         "Note created at {} with tags: {:?}",
@@ -95,6 +95,8 @@ pub mod vault_petgraph;
 #[cfg(test)]
 mod vault_test;
 
+pub(crate) mod vault_get_files;
+
 use crate::obfile::ObFile;
 use crate::{error::Error, prelude::ObFileOnDisk};
 use serde::de::DeserializeOwned;
@@ -104,14 +106,7 @@ use std::{
     marker::PhantomData,
     path::{Path, PathBuf},
 };
-use walkdir::{DirEntry, WalkDir};
-
-fn is_hidden(entry: &DirEntry) -> bool {
-    entry
-        .file_name()
-        .to_str()
-        .is_some_and(|s| s.starts_with('.'))
-}
+use vault_get_files::get_files_for_parse;
 
 /// Represents an entire Obsidian vault
 ///
@@ -150,29 +145,15 @@ fn check_vault(path: impl AsRef<Path>) -> Result<(), Error> {
     Ok(())
 }
 
-fn get_files_for_parse<T: FromIterator<DirEntry>>(path: impl AsRef<Path>) -> T {
-    WalkDir::new(path)
-        .min_depth(1)
-        .into_iter()
-        .filter_entry(|x| !is_hidden(x))
-        .filter_map(Result::ok)
-        .filter(|x| {
-            x.path()
-                .extension()
-                .is_some_and(|ext| ext.eq_ignore_ascii_case("md"))
-        })
-        .collect()
-}
-
 impl<T, F> Vault<T, F>
 where
     T: DeserializeOwned + Clone,
     F: ObFile<T> + Send,
 {
     #[cfg(feature = "rayon")]
-    fn parse_files<L>(files: &[DirEntry], f: L) -> Vec<F>
+    fn parse_files<L>(files: &[PathBuf], f: L) -> Vec<F>
     where
-        L: Fn(&DirEntry) -> Option<F> + Sync + Send,
+        L: Fn(&PathBuf) -> Option<F> + Sync + Send,
     {
         use rayon::prelude::*;
 
@@ -180,9 +161,9 @@ where
     }
 
     #[cfg(not(feature = "rayon"))]
-    fn parse_files<L>(files: &[DirEntry], f: L) -> Vec<F>
+    fn parse_files<L>(files: &[PathBuf], f: L) -> Vec<F>
     where
-        L: Fn(&DirEntry) -> Option<F>,
+        L: Fn(&PathBuf) -> Option<F>,
     {
         files.into_iter().filter_map(f).collect()
     }
@@ -219,11 +200,11 @@ where
         log::debug!("Found {} markdown files to parse", files_for_parse.len());
 
         #[allow(unused_variables)]
-        let files = Self::parse_files(&files_for_parse, |file| match F::from_file(file.path()) {
+        let files = Self::parse_files(&files_for_parse, |file| match F::from_file(file) {
             Ok(file) => Some(file),
             Err(e) => {
                 #[cfg(feature = "logging")]
-                log::warn!("Failed to parse {}: {}", file.path().display(), e);
+                log::warn!("Failed to parse {}: {}", file.display(), e);
 
                 None
             }
