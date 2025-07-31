@@ -1,6 +1,6 @@
 [package]
 name = "obsidian-parser"
-version = "0.3.1"
+version = "0.3.2"
 edition = "2024"
 description = "Blazingly fast Obsidian vault parser with graph analysis"
 repository = "https://github.com/CryptoGladi/obsidian-parser"
@@ -36,7 +36,7 @@ rayon = ["dep:rayon", "dep:crossbeam-channel"]
 
 [package.metadata.docs.rs]
 all-features = true
-rustdoc-args = ["--cfg docsrs"]
+rustc-args = ["--cfg", "docsrs"]
 
 [[example]]
 name = "analyzer"

@@ -64,10 +64,10 @@ where
 
     /// Get note name
     fn note_name(&self) -> Option<String> {
-        if let Some(path) = self.path() {
-            if let Some(name) = path.file_stem() {
-                return Some(name.to_string_lossy().to_string());
-            }
+        if let Some(path) = self.path()
+            && let Some(name) = path.file_stem()
+        {
+            return Some(name.to_string_lossy().to_string());
         }
 
         None
