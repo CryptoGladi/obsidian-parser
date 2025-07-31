@@ -25,14 +25,15 @@ type DefaultProperties = HashMap<String, serde_yml::Value>;
 /// use obsidian_parser::prelude::*;
 /// use serde::Deserialize;
 ///
-/// #[derive(Deserialize, Default, Clone)]
+/// #[derive(Deserialize, Clone)]
 /// struct NoteProperties {
 ///     topic: String,
 ///     created: String,
 /// }
 ///
 /// let note: ObFileInMemory<NoteProperties> = ObFile::from_file("note.md").unwrap();
-/// println!("Note topic: {}", note.properties().unwrap().topic);
+/// let properties = note.properties().unwrap().unwrap();
+/// println!("Note topic: {}", properties.topic);
 /// ```
 pub trait ObFile<T = DefaultProperties>: Sized
 where
@@ -43,7 +44,10 @@ where
     /// # Implementation Notes
     /// - Strips YAML frontmatter if present
     /// - Preserves original formatting and whitespace
-    fn content(&self) -> String;
+    ///
+    /// # Errors
+    /// Usually errors are related to [`Error::Io`]
+    fn content(&self) -> Result<String, Error>;
 
     /// Returns the source file path if available
     ///
@@ -53,7 +57,10 @@ where
     /// Returns the parsed properties of frontmatter
     ///
     /// Returns [`None`] if the note has no properties
-    fn properties(&self) -> Option<T>;
+    ///
+    /// # Errors
+    /// Usually errors are related to [`Error::Io`]
+    fn properties(&self) -> Result<Option<T>, Error>;
 
     /// Get note name
     fn note_name(&self) -> Option<String> {
@@ -256,11 +263,11 @@ Two test data";
     pub(crate) fn from_string<T: ObFile>() -> Result<(), Error> {
         init_test_logger();
         let file = T::from_string(TEST_DATA, None::<&str>)?;
-        let properties = file.properties().unwrap();
+        let properties = file.properties().unwrap().unwrap();
 
         assert_eq!(properties["topic"], "life");
         assert_eq!(properties["created"], "2025-03-16");
-        assert_eq!(file.content(), "Test data\n---\nTwo test data");
+        assert_eq!(file.content().unwrap(), "Test data\n---\nTwo test data");
         Ok(())
     }
 
@@ -279,8 +286,8 @@ Two test data";
         let test_data = "TEST_DATA";
         let file = T::from_string(test_data, None::<&str>)?;
 
-        assert_eq!(file.properties(), None);
-        assert_eq!(file.content(), test_data);
+        assert_eq!(file.properties().unwrap(), None);
+        assert_eq!(file.content().unwrap(), test_data);
         Ok(())
     }
 
@@ -314,10 +321,10 @@ Two test data";
         init_test_logger();
         let data = "---\ndata: 💩\n---\nSuper data 💩💩💩";
         let file = T::from_string(data, None::<&str>)?;
-        let properties = file.properties().unwrap();
+        let properties = file.properties().unwrap().unwrap();
 
         assert_eq!(properties["data"], "💩");
-        assert_eq!(file.content(), "Super data 💩💩💩");
+        assert_eq!(file.content().unwrap(), "Super data 💩💩💩");
         Ok(())
     }
 
@@ -325,9 +332,9 @@ Two test data";
         init_test_logger();
         let data = "  ---\ntest: test-data\n---\n";
         let file = T::from_string(data, None::<&str>)?;
-        let properties = file.properties();
+        let properties = file.properties().unwrap();
 
-        assert_eq!(file.content(), data);
+        assert_eq!(file.content().unwrap(), data);
         assert_eq!(properties, None);
         Ok(())
     }
@@ -338,9 +345,9 @@ Two test data";
         temp_file.write_all(b"TEST_DATA").unwrap();
 
         let file = T::from_file(temp_file.path()).unwrap();
-        assert_eq!(file.content(), "TEST_DATA");
+        assert_eq!(file.content().unwrap(), "TEST_DATA");
         assert_eq!(file.path().unwrap(), temp_file.path());
-        assert_eq!(file.properties(), None);
+        assert_eq!(file.properties().unwrap(), None);
         Ok(())
     }
 
@@ -370,8 +377,8 @@ Two test data";
 
         let file = T::from_file(test_file.path())?;
 
-        assert_eq!(file.properties(), None);
-        assert_eq!(file.content(), test_data);
+        assert_eq!(file.properties().unwrap(), None);
+        assert_eq!(file.content().unwrap(), test_data);
         Ok(())
     }
 
@@ -413,10 +420,10 @@ Two test data";
         test_file.write_all(data.as_bytes()).unwrap();
 
         let file = T::from_file(test_file.path())?;
-        let properties = file.properties();
+        let properties = file.properties().unwrap().unwrap();
 
-        assert_eq!(properties.unwrap()["data"], "💩");
-        assert_eq!(file.content(), "Super data 💩💩💩");
+        assert_eq!(properties["data"], "💩");
+        assert_eq!(file.content().unwrap(), "Super data 💩💩💩");
         Ok(())
     }
 
@@ -428,8 +435,8 @@ Two test data";
 
         let file = T::from_string(data, None::<&str>)?;
 
-        assert_eq!(file.content(), data);
-        assert_eq!(file.properties(), None);
+        assert_eq!(file.content().unwrap(), data);
+        assert_eq!(file.properties().unwrap(), None);
         Ok(())
     }
 

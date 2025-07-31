@@ -15,7 +15,7 @@ Blazingly fast Rust library for parsing and analyzing [Obsidian](https://obsidia
 Add to `Cargo.toml`:
 ```toml
 [dependencies]
-obsidian-parser = "0.2"
+obsidian-parser = "0.3"
 ```
 ### Basic Usage
 *  Parsing
@@ -26,16 +26,16 @@ use serde::Deserialize;
 // Parse single file with `HashMap`
 let note_hashmap = ObFileInMemory::from_file_default("note.md").unwrap();
 
-println!("Content: {}", note_hashmap.content());
-println!("Properties: {:#?}", note_hashmap.properties());
+println!("Content: {}", note_hashmap.content().unwrap());
+println!("Properties: {:#?}", note_hashmap.properties().unwrap().unwrap());
 
 // Parse single file with custom struct
-#[derive(Clone, Default, Deserialize)]
+#[derive(Clone, Deserialize)]
 struct NoteProperties {
-    created: String,
+     created: String,
      tags: Vec<String>,
      priority: u8,
-}
+ }
 
 let note_with_serde: ObFileInMemory<NoteProperties> = ObFileInMemory::from_file("note.md").unwrap();
 ```
@@ -43,30 +43,31 @@ let note_with_serde: ObFileInMemory<NoteProperties> = ObFileInMemory::from_file(
 ```rust
 use obsidian_parser::prelude::*;
 
-// Open vault (defaults to on-disk representation for efficiency)
-let vault = Vault::open_default("/path/to/vault")?;
+// Load entire vault
+let vault = Vault::open_default("/path/to/vault").unwrap();
 
-// Check for duplicate note names (critical for graph operations)
-if !vault.has_unique_filenames() {
-    eprintln!("Duplicate note names detected!");
+// Check for duplicate note names
+if !vault.check_unique_note_name() {
+     eprintln!("Duplicate note names detected!");
 }
+
 // Access parsed files
-for file in &vault.files {
-    println!("Note: {:?}", file.path());
+for file in vault.files {
+   println!("Note: {:?}", file.path());
 }
 ```
 ### Graph Analysis (requires `petgraph` feature)
 Enable in `Cargo.toml`:
 ```toml
-obsidian-parser = { version = "0.2", features = ["petgraph"] }
-# obsidian-parser = { version = "0.2", features = ["petgraph", "rayon"] } is fast
+obsidian-parser = { version = "0.3", features = ["petgraph"] }
+# obsidian-parser = { version = "0.3", features = ["petgraph", "rayon"] } is fast
 ```
 Then:
 ```rust
 use obsidian_parser::prelude::*;
 use petgraph::dot::{Dot, Config};
-let vault = Vault::open_default("/path/to/vault")?;
-let graph = vault.get_digraph();
+let vault = Vault::open_default("/path/to/vault").unwrap();
+let graph = vault.get_digraph().unwrap();
 // Export to Graphviz format
 println!("{:?}", Dot::with_config(&graph, &[Config::EdgeNoLabel]));
 // Find most connected note

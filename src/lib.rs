@@ -14,7 +14,7 @@
 //! Add to `Cargo.toml`:
 //! ```toml
 //! [dependencies]
-//! obsidian-parser = { version = "0.2", features = ["petgraph", "rayon"] }
+//! obsidian-parser = { version = "0.3", features = ["petgraph", "rayon"] }
 //! ```
 //!
 //! ## Examples
@@ -27,11 +27,11 @@
 //! // Parse single file with `HashMap`
 //! let note_hashmap = ObFileInMemory::from_file_default("note.md").unwrap();
 //!
-//! println!("Content: {}", note_hashmap.content());
-//! println!("Properties: {:#?}", note_hashmap.properties());
+//! println!("Content: {}", note_hashmap.content().unwrap());
+//! println!("Properties: {:#?}", note_hashmap.properties().unwrap().unwrap());
 //!
 //! // Parse single file with custom struct
-//! #[derive(Clone, Default, Deserialize)]
+//! #[derive(Clone, Deserialize)]
 //! struct NoteProperties {
 //!     created: String,
 //!     tags: Vec<String>,
@@ -52,6 +52,11 @@
 //! if !vault.check_unique_note_name() {
 //!     eprintln!("Duplicate note names detected!");
 //! }
+//!
+//! // Access parsed files
+//! for file in vault.files {
+//!   println!("Note: {:?}", file.path());
+//! }
 //! ```
 //!
 //! ### Graph Analysis (requires [`petgraph`] feature)
@@ -62,7 +67,7 @@
 //!     use petgraph::dot::{Dot, Config};
 //!
 //!     let vault = Vault::open_default("/path/to/vault").unwrap();
-//!     let graph = vault.get_digraph();
+//!     let graph = vault.get_digraph().unwrap();
 //!     
 //!     // Export to Graphviz format
 //!     println!("{:?}", Dot::with_config(&graph, &[Config::EdgeNoLabel]));

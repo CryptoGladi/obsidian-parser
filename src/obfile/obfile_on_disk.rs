@@ -46,7 +46,7 @@ where
 impl<T: DeserializeOwned + Clone> ObFile<T> for ObFileOnDisk<T> {
     /// Returns the note's content body (without frontmatter)
     ///
-    /// # Panics
+    /// # Errors
     /// - If file doesn't exist
     /// - On filesystem errors
     /// - If file contains invalid UTF-8
@@ -57,15 +57,11 @@ impl<T: DeserializeOwned + Clone> ObFile<T> for ObFileOnDisk<T> {
     /// - Large files where in-memory storage is prohibitive
     ///
     /// For repeated access, consider caching or `ObFileInMemory`.
-    #[allow(
-        clippy::unwrap_used,
-        reason = "The documentation states that panics are possible"
-    )]
-    fn content(&self) -> String {
-        let data = std::fs::read(&self.path).unwrap();
-        let raw_text = String::from_utf8(data).unwrap();
+    fn content(&self) -> Result<String, Error> {
+        let data = std::fs::read(&self.path)?;
+        let raw_text = String::from_utf8(data)?;
 
-        match parse_obfile(&raw_text).unwrap() {
+        let result = match parse_obfile(&raw_text)? {
             ResultParse::WithProperties {
                 content,
                 properties: _,
@@ -81,22 +77,20 @@ impl<T: DeserializeOwned + Clone> ObFile<T> for ObFileOnDisk<T> {
 
                 raw_text
             }
-        }
+        };
+
+        Ok(result)
     }
 
     /// Parses YAML frontmatter directly from disk
     ///
-    /// # Panics
+    /// # Errors
     /// - If properties can't be deserialized
-    #[allow(
-        clippy::unwrap_used,
-        reason = "The documentation states that panics are possible"
-    )]
-    fn properties(&self) -> Option<T> {
-        let data = std::fs::read(&self.path).unwrap();
-        let raw_text = String::from_utf8(data).unwrap();
+    fn properties(&self) -> Result<Option<T>, Error> {
+        let data = std::fs::read(&self.path)?;
+        let raw_text = String::from_utf8(data)?;
 
-        match parse_obfile(&raw_text).unwrap() {
+        let result = match parse_obfile(&raw_text)? {
             ResultParse::WithProperties {
                 content: _,
                 properties,
@@ -104,7 +98,7 @@ impl<T: DeserializeOwned + Clone> ObFile<T> for ObFileOnDisk<T> {
                 #[cfg(feature = "logging")]
                 log::trace!("Frontmatter detected, parsing properties");
 
-                Some(serde_yml::from_str(properties).unwrap())
+                Some(serde_yml::from_str(properties)?)
             }
             ResultParse::WithoutProperties => {
                 #[cfg(feature = "logging")]
@@ -112,7 +106,9 @@ impl<T: DeserializeOwned + Clone> ObFile<T> for ObFileOnDisk<T> {
 
                 None
             }
-        }
+        };
+
+        Ok(result)
     }
 
     #[inline]
@@ -198,7 +194,7 @@ mod tests {
         test_file.write_all(test_data.as_bytes()).unwrap();
 
         let file = ObFileOnDisk::from_file_default(test_file.path()).unwrap();
-        assert_eq!(file.content(), test_data);
+        assert_eq!(file.content().unwrap(), test_data);
     }
 
     #[test]
@@ -209,7 +205,9 @@ mod tests {
         test_file.write_all(test_data.as_bytes()).unwrap();
 
         let file = ObFileOnDisk::from_file_default(test_file.path()).unwrap();
-        assert_eq!(file.content(), "DATA");
-        assert_eq!(file.properties().unwrap()["time"], "now");
+        let properties = file.properties().unwrap().unwrap();
+
+        assert_eq!(file.content().unwrap(), "DATA");
+        assert_eq!(properties["time"], "now");
     }
 }
