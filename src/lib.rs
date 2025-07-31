@@ -8,7 +8,8 @@
 //! ## Key Features
 //! * 🛡️ **100% Safe Rust** - Strictly forbids unsafe code (`#![forbid(unsafe_code)]`)
 //! * ⚡ **High Performance** - Parses 1000 notes in <3ms
-//! * 🕸️ **Knowledge Graphs** - Built-in petgraph integration for graph analysis (requires [`petgraph`] feature)
+//! * 🕸️ **Knowledge Graphs** - Built-in petgraph integration for graph analysis
+//!   (requires [`petgraph`](https://docs.rs/petgraph/latest/petgraph) feature)
 //!
 //! ## Usage
 //! Add to `Cargo.toml`:
@@ -59,7 +60,7 @@
 //! }
 //! ```
 //!
-//! ### Graph Analysis (requires [`petgraph`] feature)
+//! ### Graph Analysis (requires [`petgraph`](https://docs.rs/petgraph/latest/petgraph) feature)
 //! ```no_run
 //! #[cfg(feature = "petgraph")]
 //! {
@@ -85,7 +86,7 @@
 //! - 🚀 1000 files parsed in 2.7ms (avg)
 //! - 💾 Peak memory: 900KB per 1000 notes
 //!
-//! Parallel processing via Rayon (enable [`rayon`] feature)
+//! Parallel processing via Rayon (enable `rayon` feature)
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
@@ -99,6 +100,7 @@
 #![warn(clippy::unreadable_literal)]
 #![warn(clippy::missing_const_for_fn)]
 #![warn(clippy::as_conversions)]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 pub mod error;
 pub mod obfile;

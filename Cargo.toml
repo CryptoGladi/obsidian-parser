@@ -1,6 +1,6 @@
 [package]
 name = "obsidian-parser"
-version = "0.3.0"
+version = "0.3.1"
 edition = "2024"
 description = "Blazingly fast Obsidian vault parser with graph analysis"
 repository = "https://github.com/CryptoGladi/obsidian-parser"
@@ -34,6 +34,10 @@ logging = ["dep:log"]
 petgraph = ["dep:petgraph", "dep:ahash"]
 rayon = ["dep:rayon", "dep:crossbeam-channel"]
 
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg docsrs"]
+
 [[example]]
 name = "analyzer"
 required-features = ["petgraph", "logging"]
@@ -45,6 +49,5 @@ harness = false
 [profile.bench]
 opt-level = 3
 lto = 'fat'
-panic = 'abort'
 codegen-units = 1
 overflow-checks = false

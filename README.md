@@ -56,7 +56,7 @@ for file in vault.files {
    println!("Note: {:?}", file.path());
 }
 ```
-### Graph Analysis (requires `petgraph` feature)
+### Graph Analysis (requires [`petgraph`](https://docs.rs/petgraph/latest/petgraph) feature)
 Enable in `Cargo.toml`:
 ```toml
 obsidian-parser = { version = "0.3", features = ["petgraph"] }

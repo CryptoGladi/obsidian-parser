@@ -148,8 +148,12 @@ enum ResultParse<'a> {
 }
 
 fn parse_obfile(raw_text: &str) -> Result<ResultParse, Error> {
-    let mut lines = raw_text.lines();
-    if lines.next().unwrap_or_default().trim_end() == "---" {
+    let have_start_properties = raw_text
+        .lines()
+        .next()
+        .is_some_and(|line| line.trim_end() == "---");
+
+    if have_start_properties {
         let closed = raw_text["---".len()..]
             .find("---")
             .ok_or(Error::InvalidFormat)?;
@@ -211,6 +215,15 @@ mod tests {
         init_test_logger();
         let test_data = "---\nproperties data\ntest data";
         let _ = parse_obfile(test_data).unwrap();
+    }
+
+    #[test]
+    fn parse_obfile_with_() {
+        init_test_logger();
+        let test_data = "---properties data";
+
+        let result = parse_obfile(test_data).unwrap();
+        assert_eq!(result, ResultParse::WithoutProperties);
     }
 
     #[test]

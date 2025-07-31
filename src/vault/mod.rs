@@ -90,6 +90,7 @@
 //! ```
 
 #[cfg(feature = "petgraph")]
+#[cfg_attr(docsrs, doc(cfg(feature = "petgraph")))]
 pub mod vault_petgraph;
 
 #[cfg(test)]
@@ -157,7 +158,7 @@ where
     {
         use rayon::prelude::*;
 
-        files.into_par_iter().filter_map(f).collect()
+        files.par_iter().filter_map(f).collect()
     }
 
     #[cfg(not(feature = "rayon"))]

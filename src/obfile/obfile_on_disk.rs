@@ -28,8 +28,7 @@ use std::{collections::HashMap, path::PathBuf};
 /// - Graph processing
 ///
 /// # Warning
-/// Requires **persistent file access** throughout the object's lifetime. If files are moved/deleted,
-/// calling `content()` or `properties()` will **panic**
+/// Requires **persistent file access** throughout the object's lifetime
 ///
 /// [`ObFileInMemory`]: crate::obfile::obfile_in_memory::ObFileInMemory
 #[derive(Debug, Default, PartialEq, Eq, Clone)]

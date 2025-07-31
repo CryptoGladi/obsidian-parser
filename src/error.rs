@@ -100,6 +100,7 @@ pub enum Error {
     /// assert!(matches!(result, Err(Error::DuplicateNoteNamesDetected(_))));
     /// ```
     #[cfg(feature = "petgraph")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "petgraph")))]
     #[error("Duplicate note names detected: `{0:?}`")]
     DuplicateNoteNamesDetected(Vec<String>),
 }
