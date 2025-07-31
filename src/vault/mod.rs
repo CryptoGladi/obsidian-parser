@@ -32,7 +32,7 @@
 //! use obsidian_parser::prelude::*;
 //! use serde::Deserialize;
 //!
-//! #[derive(Clone, Default, Deserialize)]
+//! #[derive(Clone, Deserialize)]
 //! struct NoteProperties {
 //!     created: String,
 //!     tags: Vec<String>,
@@ -79,7 +79,7 @@
 //! use obsidian_parser::prelude::*;
 //! use serde::Deserialize;
 //!
-//! #[derive(Clone, Default, Deserialize)]
+//! #[derive(Clone, Deserialize)]
 //! struct NoteProperties {
 //!     created: String,
 //!     tags: Vec<String>,
@@ -165,7 +165,7 @@ where
     where
         L: Fn(&PathBuf) -> Option<F>,
     {
-        files.into_iter().filter_map(f).collect()
+        files.iter().filter_map(f).collect()
     }
 
     /// Opens and parses an Obsidian vault

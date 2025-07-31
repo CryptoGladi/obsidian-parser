@@ -25,7 +25,7 @@ type DefaultProperties = HashMap<String, serde_yml::Value>;
 /// use obsidian_parser::prelude::*;
 /// use serde::Deserialize;
 ///
-/// #[derive(Deserialize, Default, Clone)]
+/// #[derive(Deserialize, Clone)]
 /// struct NoteProperties {
 ///     topic: String,
 ///     created: String,

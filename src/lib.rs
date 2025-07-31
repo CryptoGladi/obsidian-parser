@@ -14,7 +14,7 @@
 //! Add to `Cargo.toml`:
 //! ```toml
 //! [dependencies]
-//! obsidian-parser = { version = "0.2", features = ["petgraph", "rayon"] }
+//! obsidian-parser = { version = "0.3", features = ["petgraph", "rayon"] }
 //! ```
 //!
 //! ## Examples
@@ -31,7 +31,7 @@
 //! println!("Properties: {:#?}", note_hashmap.properties().unwrap().unwrap());
 //!
 //! // Parse single file with custom struct
-//! #[derive(Clone, Default, Deserialize)]
+//! #[derive(Clone, Deserialize)]
 //! struct NoteProperties {
 //!     created: String,
 //!     tags: Vec<String>,
@@ -51,6 +51,11 @@
 //! // Check for duplicate note names
 //! if !vault.check_unique_note_name() {
 //!     eprintln!("Duplicate note names detected!");
+//! }
+//!
+//! // Access parsed files
+//! for file in vault.files {
+//!   println!("Note: {:?}", file.path());
 //! }
 //! ```
 //!

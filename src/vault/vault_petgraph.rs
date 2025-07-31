@@ -1,11 +1,11 @@
-//! Graph analysis for Obsidian vaults using [`petgraph`]
+//! Graph analysis for Obsidian vaults using `petgraph`
 //!
 //! This module provides functionality to convert an Obsidian vault into:
 //! - **Directed graphs** ([`DiGraph`]) where edges represent one-way links
 //! - **Undirected graphs** ([`UnGraph`]) where connections are bidirectional
 //!
 //! # Key Features
-//! - Efficient graph construction using parallel processing (with [`rayon`] feature)
+//! - Efficient graph construction using parallel processing (with `rayon` feature)
 //! - Smart link parsing that handles Obsidian's link formats
 //! - Memory-friendly design (prefer [`ObFileOnDisk`](crate::prelude::ObFileOnDisk) for large vaults)
 //!
@@ -22,7 +22,7 @@
 //! Enable `petgraph` feature in Cargo.toml:
 //! ```toml
 //! [dependencies]
-//! obsidian-parser = { version = "0.2", features = ["petgraph"] }
+//! obsidian-parser = { version = "0.3", features = ["petgraph"] }
 //! ```
 //!
 //! # Examples
@@ -130,7 +130,7 @@ where
 {
     /// Builds edges between nodes in the graph
     ///
-    /// Uses parallel processing when [`rayon`] feature is enabled
+    /// Uses parallel processing when `rayon` feature is enabled
     #[cfg(feature = "rayon")]
     fn build_edges_for_graph<Ty: EdgeType + Send + Sync>(
         graph: &mut Graph<String, (), Ty>,
@@ -189,7 +189,7 @@ where
 
     /// Builds edges between nodes in the graph
     ///
-    /// Uses parallel processing when [`rayon`] feature is enabled
+    /// Uses parallel processing when `rayon` feature is enabled
     #[cfg(not(feature = "rayon"))]
     fn build_edges_for_graph<Ty: EdgeType>(
         graph: &mut Graph<String, (), Ty>,
@@ -206,7 +206,7 @@ where
             )]
             let name = file.note_name().unwrap();
 
-            parse_links(&file.content())
+            parse_links(&file.content().expect("read contect error"))
                 .filter(|link| nodes.contains_key(*link))
                 .for_each(|link| {
                     let node_to = nodes[&name];
@@ -263,7 +263,7 @@ where
     /// Edges point from source note to linked note (A → B means A links to B)
     ///
     /// # Performance Notes
-    /// - For vaults with 1000+ notes, enable [`rayon`] feature
+    /// - For vaults with 1000+ notes, enable `rayon` feature
     /// - Uses [`ObFileOnDisk`](crate::prelude::ObFileOnDisk) for minimal memory footprint
     ///
     /// # Example
