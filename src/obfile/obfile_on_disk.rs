@@ -1,10 +1,12 @@
 //! On-disk representation of an Obsidian note file
 
 use crate::error::Error;
-use crate::obfile::{ObFile, ResultParse, parse_obfile};
+use crate::obfile::{DefaultProperties, ObFile, ResultParse, parse_obfile};
 use serde::de::DeserializeOwned;
+use std::borrow::Cow;
 use std::marker::PhantomData;
-use std::{collections::HashMap, path::PathBuf};
+use std::path::Path;
+use std::path::PathBuf;
 
 /// On-disk representation of an Obsidian note file
 ///
@@ -32,7 +34,7 @@ use std::{collections::HashMap, path::PathBuf};
 ///
 /// [`ObFileInMemory`]: crate::obfile::obfile_in_memory::ObFileInMemory
 #[derive(Debug, Default, PartialEq, Eq, Clone)]
-pub struct ObFileOnDisk<T = HashMap<String, serde_yml::Value>>
+pub struct ObFileOnDisk<T = DefaultProperties>
 where
     T: DeserializeOwned + Clone,
 {
@@ -56,7 +58,7 @@ impl<T: DeserializeOwned + Clone> ObFile<T> for ObFileOnDisk<T> {
     /// - Large files where in-memory storage is prohibitive
     ///
     /// For repeated access, consider caching or `ObFileInMemory`.
-    fn content(&self) -> Result<String, Error> {
+    fn content(&self) -> Result<Cow<'_, str>, Error> {
         let data = std::fs::read(&self.path)?;
         let raw_text = String::from_utf8(data)?;
 
@@ -78,14 +80,14 @@ impl<T: DeserializeOwned + Clone> ObFile<T> for ObFileOnDisk<T> {
             }
         };
 
-        Ok(result)
+        Ok(Cow::Owned(result))
     }
 
     /// Parses YAML frontmatter directly from disk
     ///
     /// # Errors
     /// - If properties can't be deserialized
-    fn properties(&self) -> Result<Option<T>, Error> {
+    fn properties(&self) -> Result<Option<Cow<'_, T>>, Error> {
         let data = std::fs::read(&self.path)?;
         let raw_text = String::from_utf8(data)?;
 
@@ -111,8 +113,8 @@ impl<T: DeserializeOwned + Clone> ObFile<T> for ObFileOnDisk<T> {
     }
 
     #[inline]
-    fn path(&self) -> Option<PathBuf> {
-        Some(self.path.clone())
+    fn path(&self) -> Option<Cow<'_, Path>> {
+        Some(Cow::Borrowed(&self.path))
     }
 
     /// Creates instance from text (requires path!)

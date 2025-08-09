@@ -5,12 +5,9 @@ pub mod obfile_on_disk;
 
 use crate::error::Error;
 use serde::de::DeserializeOwned;
-use std::{
-    collections::HashMap,
-    path::{Path, PathBuf},
-};
+use std::{borrow::Cow, collections::HashMap, path::Path};
 
-type DefaultProperties = HashMap<String, serde_yml::Value>;
+pub(crate) type DefaultProperties = HashMap<String, serde_yml::Value>;
 
 /// Represents an Obsidian note file with frontmatter properties and content
 ///
@@ -47,12 +44,12 @@ where
     ///
     /// # Errors
     /// Usually errors are related to [`Error::Io`]
-    fn content(&self) -> Result<String, Error>;
+    fn content(&self) -> Result<Cow<'_, str>, Error>;
 
     /// Returns the source file path if available
     ///
     /// Returns [`None`] for in-memory notes without physical storage
-    fn path(&self) -> Option<PathBuf>;
+    fn path(&self) -> Option<Cow<'_, Path>>;
 
     /// Returns the parsed properties of frontmatter
     ///
@@ -60,17 +57,16 @@ where
     ///
     /// # Errors
     /// Usually errors are related to [`Error::Io`]
-    fn properties(&self) -> Result<Option<T>, Error>;
+    fn properties(&self) -> Result<Option<Cow<'_, T>>, Error>;
 
     /// Get note name
     fn note_name(&self) -> Option<String> {
-        if let Some(path) = self.path()
-            && let Some(name) = path.file_stem()
-        {
-            return Some(name.to_string_lossy().to_string());
-        }
-
-        None
+        self.path().as_ref().map(|path| {
+            path.file_stem()
+                .expect("Path is not file")
+                .to_string_lossy()
+                .to_string()
+        })
     }
 
     /// Parses an Obsidian note from a string
@@ -125,6 +121,40 @@ pub trait ObFileDefault: ObFile<DefaultProperties> {
     fn from_file_default<P: AsRef<Path>>(path: P) -> Result<Self, Error>;
 }
 
+/// Parses Obsidian-style links in note content
+///
+/// Handles all link formats:
+/// - `[[Note]]`
+/// - `[[Note|Alias]]`
+/// - `[[Note^block]]`
+/// - `[[Note#heading]]`
+/// - `[[Note#heading|Alias]]`
+///
+/// # Example
+/// ```
+/// # use obsidian_parser::obfile::parse_links;
+/// let content = "[[Physics]] and [[Math|Mathematics]]";
+/// let links: Vec<_> = parse_links(content).collect();
+/// assert_eq!(links, vec!["Physics", "Math"]);
+/// ```
+pub fn parse_links(text: &str) -> impl Iterator<Item = &str> {
+    text.match_indices("[[").filter_map(move |(start_pos, _)| {
+        let end_pos = text[start_pos + 2..].find("]]")?;
+        let inner = &text[start_pos + 2..start_pos + 2 + end_pos];
+
+        let note_name = inner
+            .split('#')
+            .next()?
+            .split('^')
+            .next()?
+            .split('|')
+            .next()?
+            .trim();
+
+        Some(note_name)
+    })
+}
+
 impl<T> ObFileDefault for T
 where
     T: ObFile<DefaultProperties>,
@@ -147,7 +177,7 @@ enum ResultParse<'a> {
     WithoutProperties,
 }
 
-fn parse_obfile(raw_text: &str) -> Result<ResultParse, Error> {
+fn parse_obfile(raw_text: &str) -> Result<ResultParse<'_>, Error> {
     let have_start_properties = raw_text
         .lines()
         .next()
@@ -249,13 +279,23 @@ mod tests {
             }
         );
     }
+
+    #[test]
+    fn test_parse_links() {
+        init_test_logger();
+        let test_data =
+            "[[Note]] [[Note|Alias]] [[Note^block]] [[Note#Heading|Alias]] [[Note^block|Alias]]";
+
+        let ds: Vec<_> = super::parse_links(test_data).collect();
+
+        assert!(ds.iter().all(|x| *x == "Note"))
+    }
 }
 
 #[cfg(test)]
 pub(crate) mod impl_tests {
     use super::*;
     use crate::test_utils::init_test_logger;
-    use serde::Deserialize;
     use std::io::Write;
     use tempfile::NamedTempFile;
 
@@ -266,12 +306,6 @@ created: 2025-03-16\n\
 Test data\n\
 ---\n\
 Two test data";
-
-    #[derive(Debug, Deserialize, Default, PartialEq, Clone)]
-    pub(crate) struct TestProperties {
-        pub(crate) topic: String,
-        pub(crate) created: String,
-    }
 
     pub(crate) fn from_string<T: ObFile>() -> Result<(), Error> {
         init_test_logger();

@@ -1,9 +1,11 @@
 //! In-memory representation of an Obsidian note file
 
 use crate::error::Error;
-use crate::obfile::{ObFile, ResultParse, parse_obfile};
+use crate::obfile::{DefaultProperties, ObFile, ResultParse, parse_obfile};
 use serde::de::DeserializeOwned;
-use std::{collections::HashMap, path::PathBuf};
+use std::borrow::Cow;
+use std::path::Path;
+use std::path::PathBuf;
 
 /// In-memory representation of an Obsidian note file
 ///
@@ -21,7 +23,7 @@ use std::{collections::HashMap, path::PathBuf};
 ///
 /// [`ObFileOnDisk`]: crate::obfile::obfile_on_disk::ObFileOnDisk
 #[derive(Debug, Default, PartialEq, Eq, Clone)]
-pub struct ObFileInMemory<T = HashMap<String, serde_yml::Value>>
+pub struct ObFileInMemory<T = DefaultProperties>
 where
     T: DeserializeOwned + Clone,
 {
@@ -37,18 +39,18 @@ where
 
 impl<T: DeserializeOwned + Clone> ObFile<T> for ObFileInMemory<T> {
     #[inline]
-    fn content(&self) -> Result<String, Error> {
-        Ok(self.content.clone())
+    fn content(&self) -> Result<Cow<'_, str>, Error> {
+        Ok(Cow::Borrowed(&self.content))
     }
 
     #[inline]
-    fn path(&self) -> Option<PathBuf> {
-        self.path.clone()
+    fn path(&self) -> Option<Cow<'_, Path>> {
+        self.path.as_ref().map(|p| Cow::Borrowed(p.as_path()))
     }
 
     #[inline]
-    fn properties(&self) -> Result<Option<T>, Error> {
-        Ok(self.properties.clone())
+    fn properties(&self) -> Result<Option<Cow<'_, T>>, Error> {
+        Ok(self.properties.as_ref().map(|p| Cow::Borrowed(p)))
     }
 
     /// Parses a string into an in-memory Obsidian note representation

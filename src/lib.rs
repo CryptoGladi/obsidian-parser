@@ -15,7 +15,7 @@
 //! Add to `Cargo.toml`:
 //! ```toml
 //! [dependencies]
-//! obsidian-parser = { version = "0.3", features = ["petgraph", "rayon"] }
+//! obsidian-parser = { version = "0.4", features = ["petgraph", "rayon"] }
 //! ```
 //!
 //! ## Examples
@@ -68,7 +68,7 @@
 //!     use petgraph::dot::{Dot, Config};
 //!
 //!     let vault = Vault::open_default("/path/to/vault").unwrap();
-//!     let graph = vault.get_digraph().unwrap();
+//!     let graph = vault.get_digraph();
 //!     
 //!     // Export to Graphviz format
 //!     println!("{:?}", Dot::with_config(&graph, &[Config::EdgeNoLabel]));

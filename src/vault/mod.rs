@@ -63,7 +63,7 @@
 //!     let vault = Vault::open_default("/path/to/vault").unwrap();
 //!     
 //!     // Build directed graph
-//!     let graph = vault.get_digraph().unwrap();
+//!     let graph = vault.get_digraph();
 //!     println!("Graph visualization:\n{:?}",
 //!         Dot::with_config(&graph, &[Config::EdgeNoLabel])
 //!     );
@@ -98,12 +98,12 @@ mod vault_test;
 
 pub(crate) mod vault_get_files;
 
+use crate::obfile::DefaultProperties;
 use crate::obfile::ObFile;
 use crate::{error::Error, prelude::ObFileOnDisk};
 use serde::de::DeserializeOwned;
 use std::collections::HashSet;
 use std::{
-    collections::HashMap,
     marker::PhantomData,
     path::{Path, PathBuf},
 };
@@ -201,6 +201,7 @@ where
         log::debug!("Found {} markdown files to parse", files_for_parse.len());
 
         #[allow(unused_variables)]
+        #[allow(clippy::manual_ok_err)]
         let files = Self::parse_files(&files_for_parse, |file| match F::from_file(file) {
             Ok(file) => Some(file),
             Err(e) => {
@@ -222,6 +223,9 @@ where
     }
 
     /// Returns duplicated note name
+    ///
+    /// # Performance
+    /// Operates in O(n) time for large vaults
     ///
     /// # Other
     /// See [`check_unique_note_name`](Vault::check_unique_note_name)
@@ -268,7 +272,7 @@ where
     /// `true` if all filenames are unique, `false` otherwise
     ///
     /// # Performance
-    /// Operates in O(n) time - safe for large vaults
+    /// Operates in O(n) time for large vaults
     ///
     /// # Other
     /// See [`get_duplicates_notes`](Vault::get_duplicates_notes)
@@ -279,7 +283,7 @@ where
 }
 
 #[allow(clippy::implicit_hasher)]
-impl Vault<HashMap<String, serde_yml::Value>, ObFileOnDisk> {
+impl Vault<DefaultProperties, ObFileOnDisk> {
     /// Opens vault using default properties ([`HashMap`]) and [`ObFileOnDisk`] storage
     ///
     /// Recommended for most use cases due to its memory efficiency

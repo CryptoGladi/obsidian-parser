@@ -36,7 +36,7 @@
 //! let vault = Vault::open_default("/path/to/vault").unwrap();
 //!
 //! // Build directed graph
-//! let graph = vault.get_digraph().unwrap();
+//! let graph = vault.get_digraph();
 //!
 //! // Export to Graphviz format
 //! println!("{:?}", Dot::with_config(&graph, &[Config::EdgeNoLabel]));
@@ -48,7 +48,7 @@
 //! use petgraph::algo;
 //!
 //! let vault = Vault::open_default("/path/to/vault").unwrap();
-//! let graph = vault.get_ungraph().unwrap();
+//! let graph = vault.get_ungraph();
 //!
 //! // Find knowledge clusters
 //! let components = algo::connected_components(&graph);
@@ -69,7 +69,7 @@
 //! let vault: Vault<NoteProperties> = Vault::open("/path/to/vault").unwrap();
 //!
 //! // Build graph filtering by property
-//! let mut graph = vault.get_digraph().unwrap();
+//! let mut graph = vault.get_digraph();
 //!
 //! // Remove low-importance nodes
 //! graph.retain_nodes(|g, n| {
@@ -78,8 +78,8 @@
 //! ```
 
 use super::Vault;
-use crate::error::Error;
 use crate::obfile::ObFile;
+use crate::obfile::parse_links;
 use ahash::AHashMap;
 use petgraph::graph::NodeIndex;
 use petgraph::{
@@ -88,47 +88,29 @@ use petgraph::{
 };
 use serde::de::DeserializeOwned;
 use std::marker::{Send, Sync};
-
-/// Parses Obsidian-style links in note content
-///
-/// Handles all link formats:
-/// - `[[Note]]`
-/// - `[[Note|Alias]]`
-/// - `[[Note^block]]`
-/// - `[[Note#heading]]`
-/// - `[[Note#heading|Alias]]`
-///
-/// # Example
-/// ```
-/// # use obsidian_parser::vault::vault_petgraph::parse_links;
-/// let content = "[[Physics]] and [[Math|Mathematics]]";
-/// let links: Vec<_> = parse_links(content).collect();
-/// assert_eq!(links, vec!["Physics", "Math"]);
-/// ```
-#[cfg_attr(docsrs, doc(cfg(feature = "petgraph")))]
-pub fn parse_links(text: &str) -> impl Iterator<Item = &str> {
-    text.match_indices("[[").filter_map(move |(start_pos, _)| {
-        let end_pos = text[start_pos + 2..].find("]]")?;
-        let inner = &text[start_pos + 2..start_pos + 2 + end_pos];
-
-        let note_name = inner
-            .split('#')
-            .next()?
-            .split('^')
-            .next()?
-            .split('|')
-            .next()?
-            .trim();
-
-        Some(note_name)
-    })
-}
+use std::path::Path;
 
 impl<T, F> Vault<T, F>
 where
     T: DeserializeOwned + Clone,
     F: ObFile<T> + Send + Sync,
 {
+    #[allow(
+        clippy::unwrap_used,
+        reason = "When creating a Vault, the path will be mandatory"
+    )]
+    #[inline]
+    fn relative_path(file: &F, strip_prefix: &Path) -> String {
+        file.path()
+            .unwrap()
+            .strip_prefix(strip_prefix)
+            .unwrap()
+            .file_stem()
+            .unwrap()
+            .to_string_lossy()
+            .to_string()
+    }
+
     /// Builds edges between nodes in the graph
     ///
     /// Uses parallel processing when `rayon` feature is enabled
@@ -137,6 +119,7 @@ where
         graph: &mut Graph<String, (), Ty>,
         files: &[F],
         nodes: &AHashMap<String, usize>,
+        strip_prefix: &Path,
     ) {
         use rayon::prelude::*;
 
@@ -156,11 +139,7 @@ where
                         let mut result = Vec::with_capacity(10 * CHUNK_SIZE);
 
                         for file in files {
-                            #[allow(
-                                clippy::unwrap_used,
-                                reason = "When creating a Vault, the path will be mandatory"
-                            )]
-                            let name = file.note_name().unwrap();
+                            let name = Self::relative_path(file, strip_prefix);
 
                             parse_links(&file.content().expect("read contect error"))
                                 .filter(|link| nodes.contains_key(*link))
@@ -201,11 +180,7 @@ where
         log::debug!("Using sequential edge builder");
 
         for file in files {
-            #[allow(
-                clippy::unwrap_used,
-                reason = "When creating a Vault, the path will be mandatory"
-            )]
-            let name = file.note_name().unwrap();
+            let name = Self::relative_path(file, strip_prefix);
 
             parse_links(&file.content().expect("read contect error"))
                 .filter(|link| nodes.contains_key(*link))
@@ -223,10 +198,7 @@ where
     /// # Panics
     /// Panics if duplicate note names exist.
     /// Always run [`check_unique_note_name`](Vault::check_unique_note_name) first!
-    fn build_graph<Ty: EdgeType + Send + Sync>(
-        &self,
-        graph: &mut Graph<String, (), Ty>,
-    ) -> Result<(), Error> {
+    fn build_graph<Ty: EdgeType + Send + Sync>(&self, graph: &mut Graph<String, (), Ty>) {
         #[cfg(feature = "logging")]
         log::debug!(
             "Building graph for vault: {} ({} files)",
@@ -234,29 +206,22 @@ where
             self.files.len()
         );
 
-        let duplicated_notes = self.get_duplicates_notes();
-        if !duplicated_notes.is_empty() {
-            return Err(Error::DuplicateNoteNamesDetected(duplicated_notes));
-        }
-
         let mut nodes = AHashMap::default();
         for file in &self.files {
             #[allow(
                 clippy::unwrap_used,
                 reason = "When creating a Vault, the path will be mandatory"
             )]
-            let name = file.note_name().unwrap();
+            let path_to_note = Self::relative_path(file, &self.path);
 
-            let node = graph.add_node(name.clone());
-            nodes.insert(name, node.index());
+            let node = graph.add_node(path_to_note.clone());
+            nodes.insert(path_to_note, node.index());
         }
 
-        Self::build_edges_for_graph(graph, &self.files, &nodes);
+        Self::build_edges_for_graph(graph, &self.files, &nodes, &self.path);
 
         #[cfg(feature = "logging")]
         log::debug!("Graph construction complete. Edges: {}", graph.edge_count());
-
-        Ok(())
     }
 
     /// Builds directed graph representing note relationships
@@ -272,7 +237,7 @@ where
     /// # use obsidian_parser::prelude::*;
     /// # use petgraph::Direction;
     /// # let vault = Vault::open_default("test_vault").unwrap();
-    /// let graph = vault.get_digraph().unwrap();
+    /// let graph = vault.get_digraph();
     ///
     /// // Analyze note influence
     /// let mut influence_scores: Vec<_> = graph.node_indices()
@@ -289,14 +254,15 @@ where
     /// # Other
     /// See [`get_ungraph`](Vault::get_ungraph)
     #[cfg_attr(docsrs, doc(cfg(feature = "petgraph")))]
-    pub fn get_digraph(&self) -> Result<DiGraph<String, ()>, Error> {
+    #[must_use]
+    pub fn get_digraph(&self) -> DiGraph<String, ()> {
         #[cfg(feature = "logging")]
         log::debug!("Building directed graph");
 
         let mut graph = DiGraph::new();
-        self.build_graph(&mut graph)?;
+        self.build_graph(&mut graph);
 
-        Ok(graph)
+        graph
     }
 
     /// Builds undirected graph showing note connections
@@ -308,27 +274,25 @@ where
     /// # use obsidian_parser::prelude::*;
     /// # use petgraph::algo;
     /// # let vault = Vault::open_default("test_vault").unwrap();
-    /// let graph = vault.get_ungraph().unwrap();
+    /// let graph = vault.get_ungraph();
     ///
     /// // Find connected components
     /// let components = algo::connected_components(&graph);
     /// println!("Found {} knowledge clusters", components);
     /// ```
     ///
-    /// # Errors
-    /// - [`Error::DuplicateNoteNamesDetected`]
-    ///
     /// # Other
     /// See [`get_digraph`](Vault::get_digraph)
     #[cfg_attr(docsrs, doc(cfg(feature = "petgraph")))]
-    pub fn get_ungraph(&self) -> Result<UnGraph<String, ()>, Error> {
+    #[must_use]
+    pub fn get_ungraph(&self) -> UnGraph<String, ()> {
         #[cfg(feature = "logging")]
         log::debug!("Building undirected graph");
 
         let mut graph = UnGraph::new_undirected();
-        self.build_graph(&mut graph)?;
+        self.build_graph(&mut graph);
 
-        Ok(graph)
+        graph
     }
 }
 
@@ -344,7 +308,7 @@ mod tests {
         let (vault_path, files) = create_test_vault().unwrap();
         let vault = Vault::open_default(vault_path.path()).unwrap();
 
-        let graph = vault.get_digraph().unwrap();
+        let graph = vault.get_digraph();
         assert_eq!(graph.edge_count(), 1);
         assert_eq!(graph.node_count(), files.len());
     }
@@ -355,19 +319,8 @@ mod tests {
         let (vault_path, files) = create_test_vault().unwrap();
         let vault = Vault::open_default(vault_path.path()).unwrap();
 
-        let graph = vault.get_ungraph().unwrap();
+        let graph = vault.get_ungraph();
         assert_eq!(graph.edge_count(), 1);
         assert_eq!(graph.node_count(), files.len());
-    }
-
-    #[test]
-    fn test_parse_links() {
-        init_test_logger();
-        let test_data =
-            "[[Note]] [[Note|Alias]] [[Note^block]] [[Note#Heading|Alias]] [[Note^block|Alias]]";
-
-        let ds: Vec<_> = parse_links(test_data).collect();
-
-        assert!(ds.iter().all(|x| *x == "Note"))
     }
 }

@@ -15,7 +15,7 @@ Blazingly fast Rust library for parsing and analyzing [Obsidian](https://obsidia
 Add to `Cargo.toml`:
 ```toml
 [dependencies]
-obsidian-parser = "0.3"
+obsidian-parser = "0.4"
 ```
 ### Basic Usage
 *  Parsing
@@ -66,10 +66,12 @@ Then:
 ```rust
 use obsidian_parser::prelude::*;
 use petgraph::dot::{Dot, Config};
+
 let vault = Vault::open_default("/path/to/vault").unwrap();
 let graph = vault.get_digraph().unwrap();
 // Export to Graphviz format
 println!("{:?}", Dot::with_config(&graph, &[Config::EdgeNoLabel]));
+
 // Find most connected note
 let most_connected = graph.node_indices()
     .max_by_key(|n| graph.edges(*n).count())
@@ -82,10 +84,6 @@ Included example `analyzer` calculates connected components in your Obsidian vau
 ```bash
 cargo run --example analyzer --release --features="petgraph rayon" -- --path="Path to Obsidian vault"
 ```
-## Limitations
-⚠️ **Critical Requirement for Graph Analysis**:
-All note filenames must be unique. Use `vault.has_unique_filenames()` to verify before calling `get_digraph()` or `get_ungraph()`.
-Why? Notes are identified by filename in graph operations. Duplicates will cause incorrect graph construction.
 ## Performance
 My PC AMD Ryzen 5 3600X with `NVMe` SSD
 | Operation               | Time       |

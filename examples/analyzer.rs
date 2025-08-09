@@ -29,7 +29,7 @@ fn main() {
     println!("Time open vault: {:.2?}", open_vault.elapsed());
 
     let get_graph = Instant::now();
-    let ungraph = vault.get_ungraph().unwrap();
+    let ungraph = vault.get_ungraph();
     println!("Time get graph: {:.2?}", get_graph.elapsed());
 
     println!("Count nodes in graph: {}", ungraph.node_count());
@@ -47,7 +47,7 @@ fn main() {
         .unwrap();
     println!("Knowledge hub in ungraph: {}", ungraph[most_connected]);
 
-    let digraph = vault.get_digraph().unwrap();
+    let digraph = vault.get_digraph();
     let most_connected = digraph
         .node_indices()
         .max_by_key(|n| digraph.edges(*n).count())
