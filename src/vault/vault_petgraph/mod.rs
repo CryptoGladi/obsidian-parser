@@ -77,154 +77,21 @@
 //! });
 //! ```
 
+mod graph_builder;
+mod index;
+
 use super::Vault;
 use crate::obfile::ObFile;
-use crate::obfile::parse_links;
-use ahash::AHashMap;
-use petgraph::graph::NodeIndex;
-use petgraph::{
-    EdgeType, Graph,
-    graph::{DiGraph, UnGraph},
-};
+use graph_builder::GraphBuilder;
+use petgraph::graph::{DiGraph, UnGraph};
 use serde::de::DeserializeOwned;
-use std::collections::HashMap;
 use std::marker::{Send, Sync};
-use std::path::Path;
 
 impl<T, F> Vault<T, F>
 where
     T: DeserializeOwned + Clone,
     F: ObFile<T> + Send + Sync,
 {
-    #[allow(
-        clippy::unwrap_used,
-        reason = "When creating a Vault, the path will be mandatory"
-    )]
-    #[inline]
-    fn relative_path(file: &F, strip_prefix: &Path) -> String {
-        file.path()
-            .unwrap()
-            .strip_prefix(strip_prefix)
-            .unwrap()
-            .with_extension("")
-            .to_string_lossy()
-            .to_string()
-    }
-
-    /// Builds edges between nodes in the graph
-    ///
-    /// Uses parallel processing when `rayon` feature is enabled
-    #[cfg(feature = "rayon")]
-    fn build_edges_for_graph<Ty: EdgeType + Send + Sync>(
-        graph: &mut Graph<String, (), Ty>,
-        files: &[F],
-        nodes: &AHashMap<String, usize>,
-        strip_prefix: &Path,
-    ) {
-        use rayon::prelude::*;
-
-        const CHUNK_SIZE: usize = 10;
-
-        #[cfg(feature = "logging")]
-        log::debug!("Using parallel edge builder (rayon enabled)");
-
-        let (tx, rx) = crossbeam_channel::unbounded();
-
-        rayon::scope(|s| {
-            s.spawn(|_| {
-                files
-                    .into_par_iter()
-                    .chunks(CHUNK_SIZE)
-                    .for_each_with(tx, |tx, files| {
-                        let mut result = Vec::with_capacity(10 * CHUNK_SIZE);
-
-                        for file in files {
-                            let path = Self::relative_path(file, strip_prefix);
-
-                            parse_links(&file.content().expect("read contect error"))
-                                .filter(|link| nodes.contains_key(*link))
-                                .map(|link| {
-                                    let node_to = nodes.g;
-                                    let node_from = nodes[link];
-
-                                    (node_to, node_from)
-                                })
-                                .for_each(|x| result.push(x));
-                        }
-
-                        #[allow(clippy::unwrap_used)]
-                        tx.send(result).unwrap();
-                    });
-            });
-
-            s.spawn(|_| {
-                while let Ok(result) = rx.recv() {
-                    for (node_to, node_from) in result {
-                        graph.add_edge(NodeIndex::new(node_to), NodeIndex::new(node_from), ());
-                    }
-                }
-            });
-        });
-    }
-
-    /// Builds edges between nodes in the graph
-    ///
-    /// Uses parallel processing when `rayon` feature is enabled
-    #[cfg(not(feature = "rayon"))]
-    fn build_edges_for_graph<Ty: EdgeType>(
-        graph: &mut Graph<String, (), Ty>,
-        files: &[F],
-        nodes: &AHashMap<String, usize>,
-        strip_prefix: &Path,
-    ) {
-        #[cfg(feature = "logging")]
-        log::debug!("Using sequential edge builder");
-
-        for file in files {
-            let name = Self::relative_path(file, strip_prefix);
-
-            parse_links(&file.content().expect("read contect error"))
-                .filter(|link| nodes.contains_key(*link))
-                .for_each(|link| {
-                    let node_to = nodes[&name];
-                    let node_from = nodes[link];
-
-                    graph.add_edge(NodeIndex::new(node_to), NodeIndex::new(node_from), ());
-                });
-        }
-    }
-
-    /// Internal graph builder shared by both graph types
-    ///
-    /// # Panics
-    /// Panics if duplicate note names exist.
-    /// Always run [`check_unique_note_name`](Vault::check_unique_note_name) first!
-    fn build_graph<Ty: EdgeType + Send + Sync>(&self, graph: &mut Graph<String, (), Ty>) {
-        #[cfg(feature = "logging")]
-        log::debug!(
-            "Building graph for vault: {} ({} files)",
-            self.path.display(),
-            self.files.len()
-        );
-
-        let mut nodes = AHashMap::default();
-        for file in &self.files {
-            #[allow(
-                clippy::unwrap_used,
-                reason = "When creating a Vault, the path will be mandatory"
-            )]
-            let path_to_note = Self::relative_path(file, &self.path);
-
-            let node = graph.add_node(path_to_note.clone());
-            nodes.insert(path_to_note, node.index());
-        }
-
-        Self::build_edges_for_graph(graph, &self.files, &nodes, &self.path);
-
-        #[cfg(feature = "logging")]
-        log::debug!("Graph construction complete. Edges: {}", graph.edge_count());
-    }
-
     /// Builds directed graph representing note relationships
     ///
     /// Edges point from source note to linked note (A → B means A links to B)
@@ -249,9 +116,6 @@ where
     /// println!("Most influential note: {:?}", influence_scores.last().unwrap());
     /// ```
     ///
-    /// # Errors
-    /// - [`Error::DuplicateNoteNamesDetected`]
-    ///
     /// # Other
     /// See [`get_ungraph`](Vault::get_ungraph)
     #[cfg_attr(docsrs, doc(cfg(feature = "petgraph")))]
@@ -260,10 +124,8 @@ where
         #[cfg(feature = "logging")]
         log::debug!("Building directed graph");
 
-        let mut graph = DiGraph::new();
-        self.build_graph(&mut graph);
-
-        graph
+        let graph_builder = GraphBuilder::new(self, DiGraph::new());
+        graph_builder.build()
     }
 
     /// Builds undirected graph showing note connections
@@ -290,10 +152,8 @@ where
         #[cfg(feature = "logging")]
         log::debug!("Building undirected graph");
 
-        let mut graph = UnGraph::new_undirected();
-        self.build_graph(&mut graph);
-
-        graph
+        let graph_builder = GraphBuilder::new(self, UnGraph::new_undirected());
+        graph_builder.build()
     }
 }
 
@@ -310,7 +170,8 @@ mod tests {
         let vault = Vault::open_default(vault_path.path()).unwrap();
 
         let graph = vault.get_digraph();
-        assert_eq!(graph.edge_count(), 1);
+
+        assert_eq!(graph.edge_count(), 3);
         assert_eq!(graph.node_count(), files.len());
     }
 
@@ -321,7 +182,8 @@ mod tests {
         let vault = Vault::open_default(vault_path.path()).unwrap();
 
         let graph = vault.get_ungraph();
-        assert_eq!(graph.edge_count(), 2);
+
+        assert_eq!(graph.edge_count(), 3);
         assert_eq!(graph.node_count(), files.len());
     }
 }

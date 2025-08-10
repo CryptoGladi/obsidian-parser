@@ -61,25 +61,4 @@ pub enum Error {
     /// ```
     #[error("Path: `{0}` is not a directory")]
     IsNotFile(PathBuf),
-
-    /// File contains invalid UTF-8 encoding
-    ///
-    /// Obsidian requires UTF-8 encoded files. This error occurs when
-    /// binary or improperly encoded files are encountered.
-    ///
-    /// # Example
-    /// ```no_run
-    /// # use obsidian_parser::prelude::*;
-    /// # use std::fs::File;
-    /// # use std::io::Write;
-    /// #
-    /// // Create invalid UTF-8 file
-    /// let mut f = File::create("invalid.md").unwrap();
-    /// f.write_all(&[0xff, 0xfe, 0xfd]).unwrap();
-    ///
-    /// // Parsing will fail
-    /// ObFileInMemory::from_file_default("invalid.md").unwrap_err();
-    /// ```
-    #[error("File is not is not encoded in UTF-8")]
-    FromUtf8(#[from] std::string::FromUtf8Error),
 }

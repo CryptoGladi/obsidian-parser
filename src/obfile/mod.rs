@@ -87,7 +87,6 @@ where
     ///
     /// # Errors
     /// - [`Error::Io`] for filesystem errors
-    /// - [`Error::FromUtf8`] for non-UTF8 content
     fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
         let path_buf = path.as_ref().to_path_buf();
 
@@ -95,7 +94,7 @@ where
         log::trace!("Parse obsidian file from file: {}", path_buf.display());
 
         let data = std::fs::read(path)?;
-        let text = String::from_utf8(data)?;
+        let text = unsafe { String::from_utf8_unchecked(data) };
 
         Self::from_string(&text, Some(path_buf))
     }
@@ -117,7 +116,6 @@ pub trait ObFileDefault: ObFile<DefaultProperties> {
     ///
     /// # Errors
     /// - [`Error::Io`] for filesystem errors
-    /// - [`Error::FromUtf8`] for non-UTF8 content
     fn from_file_default<P: AsRef<Path>>(path: P) -> Result<Self, Error>;
 }
 

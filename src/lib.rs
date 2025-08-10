@@ -6,10 +6,11 @@
 //! - Extracting semantic relationships between notes
 //!
 //! ## Key Features
-//! * 🛡️ **100% Safe Rust** - Strictly forbids unsafe code (`#![forbid(unsafe_code)]`)
-//! * ⚡ **High Performance** - Parses 1000 notes in <3ms
-//! * 🕸️ **Knowledge Graphs** - Built-in petgraph integration for graph analysis
-//!   (requires [`petgraph`](https://docs.rs/petgraph/latest/petgraph) feature)
+//! * ⚡ **High Performance**: Parses 1000+ notes in under 3ms
+//! * 🧠 **Knowledge Graphs**: Built-in integration with [`petgraph`](https://docs.rs/petgraph/latest/petgraph) for advanced analysis
+//! * 🧩 **Flexible API**: Supports both in-memory and on-disk note representations
+//! * 🔍 **Frontmatter Parsing**: Extract YAML properties with [`serde`](https://docs.rs/serde/latest/serde) compatibility
+//! * 🌐 **Link Analysis**: Identify connections between notes
 //!
 //! ## Usage
 //! Add to `Cargo.toml`:
@@ -83,12 +84,11 @@
 //!
 //! ## Performance
 //! Optimized for large vaults:
-//! - 🚀 1000 files parsed in 2.7ms (avg)
+//! - 🚀 1000 files parsed in 2.6 ms (avg)
 //! - 💾 Peak memory: 900KB per 1000 notes
 //!
 //! Parallel processing via Rayon (enable `rayon` feature)
 
-#![forbid(unsafe_code)]
 #![warn(missing_docs)]
 #![warn(clippy::pedantic)]
 #![warn(clippy::cargo)]

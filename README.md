@@ -86,10 +86,10 @@ cargo run --example analyzer --release --features="petgraph rayon" -- --path="Pa
 ```
 ## Performance
 My PC AMD Ryzen 5 3600X with `NVMe` SSD
-| Operation               | Time       |
-|-------------------------|------------|
-| Vault initialization    | 741.92 µs  |
-| Graph construction      | 1.67 ms    |
-| Peak memory usage       | 900 KiB    |
+| Operation                | Time       |
+|--------------------------|------------|
+| Vault initialization     | 739.35 µs  |
+| Graph construction       | 1.22 ms    |
+| Peak memory usage        | 900 KiB    |
 ## License
 MIT © [CryptoGladi](https://github.com/CryptoGladi)

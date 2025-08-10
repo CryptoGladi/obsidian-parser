@@ -281,7 +281,7 @@ where
 
 #[allow(clippy::implicit_hasher)]
 impl Vault<DefaultProperties, ObFileOnDisk> {
-    /// Opens vault using default properties ([`HashMap`]) and [`ObFileOnDisk`] storage
+    /// Opens vault using default properties ([`HashMap`](std::collections::HashMap)) and [`ObFileOnDisk`] storage
     ///
     /// Recommended for most use cases due to its memory efficiency
     ///

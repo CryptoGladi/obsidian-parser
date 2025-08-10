@@ -15,7 +15,7 @@ pub fn create_test_vault() -> Result<(TempDir, Vec<File>), std::io::Error> {
 
     std::fs::create_dir(temp_dir.path().join("data"))?;
     let mut main2 = File::create(temp_dir.path().join("data").join("main.md"))?;
-    main2.write_all(b"New main")?;
+    main2.write_all(b"New main. [[link]]")?;
 
     Ok((temp_dir, vec![main, main2, link]))
 }
