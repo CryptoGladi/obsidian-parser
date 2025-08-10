@@ -14,7 +14,7 @@
 //! // Open a vault using default properties (HashMap)
 //! let vault = Vault::open_default("/path/to/vault").unwrap();
 //!
-//! // Check for duplicate note names (important for graph operations)
+//! // Check for duplicate note names
 //! if vault.check_unique_note_name() {
 //!     println!("All note names are unique");
 //! } else {
@@ -265,9 +265,6 @@ where
 
     /// Checks if all note filenames in the vault are unique
     ///
-    /// **Critical for graph operations** where notes are identified by name.
-    /// Always run this before calling [`get_digraph`](Vault::get_digraph) or [`get_ungraph`](Vault::get_ungraph).
-    ///
     /// # Returns
     /// `true` if all filenames are unique, `false` otherwise
     ///
@@ -340,10 +337,7 @@ mod tests {
         init_test_logger();
         let (vault_path, _) = create_test_vault().unwrap();
 
-        let mut vault = Vault::open_default(vault_path.path()).unwrap();
-        assert!(vault.check_unique_note_name());
-
-        vault.files.push(vault.files.first().unwrap().clone());
+        let vault = Vault::open_default(vault_path.path()).unwrap();
         assert!(!vault.check_unique_note_name());
     }
 }

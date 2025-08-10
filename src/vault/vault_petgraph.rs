@@ -22,7 +22,7 @@
 //! Enable [`petgraph`](https://docs.rs/petgraph/latest/petgraph) feature in Cargo.toml:
 //! ```toml
 //! [dependencies]
-//! obsidian-parser = { version = "0.3", features = ["petgraph"] }
+//! obsidian-parser = { version = "0.4", features = ["petgraph"] }
 //! ```
 //!
 //! # Examples
@@ -87,6 +87,7 @@ use petgraph::{
     graph::{DiGraph, UnGraph},
 };
 use serde::de::DeserializeOwned;
+use std::collections::HashMap;
 use std::marker::{Send, Sync};
 use std::path::Path;
 
@@ -105,8 +106,7 @@ where
             .unwrap()
             .strip_prefix(strip_prefix)
             .unwrap()
-            .file_stem()
-            .unwrap()
+            .with_extension("")
             .to_string_lossy()
             .to_string()
     }
@@ -139,12 +139,12 @@ where
                         let mut result = Vec::with_capacity(10 * CHUNK_SIZE);
 
                         for file in files {
-                            let name = Self::relative_path(file, strip_prefix);
+                            let path = Self::relative_path(file, strip_prefix);
 
                             parse_links(&file.content().expect("read contect error"))
                                 .filter(|link| nodes.contains_key(*link))
                                 .map(|link| {
-                                    let node_to = nodes[&name];
+                                    let node_to = nodes.g;
                                     let node_from = nodes[link];
 
                                     (node_to, node_from)
@@ -175,6 +175,7 @@ where
         graph: &mut Graph<String, (), Ty>,
         files: &[F],
         nodes: &AHashMap<String, usize>,
+        strip_prefix: &Path,
     ) {
         #[cfg(feature = "logging")]
         log::debug!("Using sequential edge builder");
@@ -320,7 +321,7 @@ mod tests {
         let vault = Vault::open_default(vault_path.path()).unwrap();
 
         let graph = vault.get_ungraph();
-        assert_eq!(graph.edge_count(), 1);
+        assert_eq!(graph.edge_count(), 2);
         assert_eq!(graph.node_count(), files.len());
     }
 }
