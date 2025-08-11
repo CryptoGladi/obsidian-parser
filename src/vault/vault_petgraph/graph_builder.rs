@@ -61,10 +61,13 @@ where
     )]
     #[inline]
     fn relative_path(file: &F, strip_prefix: &Path) -> String {
-        let strip_prefix: String = strip_prefix.display().to_string();
-        let path: String = file.path().unwrap().display().to_string();
-
-        path[strip_prefix.len() + 1..path.len() - 3].to_string()
+        file.path()
+            .unwrap()
+            .strip_prefix(strip_prefix)
+            .unwrap()
+            .with_extension("")
+            .to_string_lossy()
+            .to_string()
     }
 
     fn create_index(&mut self) -> Index {

@@ -94,6 +94,8 @@ where
         log::trace!("Parse obsidian file from file: {}", path_buf.display());
 
         let data = std::fs::read(path)?;
+
+        // SAFETY: Notes files in Obsidian (`*.md`) ensure that the file is encoded in UTF-8
         let text = unsafe { String::from_utf8_unchecked(data) };
 
         Self::from_string(&text, Some(path_buf))

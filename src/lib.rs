@@ -91,6 +91,7 @@
 
 #![warn(missing_docs)]
 #![warn(clippy::pedantic)]
+#![warn(clippy::undocumented_unsafe_blocks)]
 #![warn(clippy::cargo)]
 #![warn(clippy::nursery)]
 #![warn(clippy::perf)]

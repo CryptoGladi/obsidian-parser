@@ -50,16 +50,17 @@ impl<T: DeserializeOwned + Clone> ObFile<T> for ObFileOnDisk<T> {
     /// # Errors
     /// - If file doesn't exist
     /// - On filesystem errors
-    /// - If file contains invalid UTF-8
     ///
     /// # Performance
     /// Performs disk read on every call. Suitable for:
     /// - Single-pass processing (link extraction, analysis)
     /// - Large files where in-memory storage is prohibitive
     ///
-    /// For repeated access, consider caching or `ObFileInMemory`.
+    /// For repeated access, consider caching or [`ObFileInMemory`](crate::obfile::obfile_in_memory::ObFileInMemory).
     fn content(&self) -> Result<Cow<'_, str>, Error> {
         let data = std::fs::read(&self.path)?;
+
+        // SAFETY: Notes files in Obsidian (`*.md`) ensure that the file is encoded in UTF-8
         let raw_text = unsafe { String::from_utf8_unchecked(data) };
 
         let result = match parse_obfile(&raw_text)? {
@@ -87,8 +88,12 @@ impl<T: DeserializeOwned + Clone> ObFile<T> for ObFileOnDisk<T> {
     ///
     /// # Errors
     /// - If properties can't be deserialized
+    /// - If file doesn't exist
+    /// - On filesystem errors
     fn properties(&self) -> Result<Option<Cow<'_, T>>, Error> {
         let data = std::fs::read(&self.path)?;
+
+        // SAFETY: Notes files in Obsidian (`*.md`) ensure that the file is encoded in UTF-8
         let raw_text = unsafe { String::from_utf8_unchecked(data) };
 
         let result = match parse_obfile(&raw_text)? {
@@ -99,7 +104,7 @@ impl<T: DeserializeOwned + Clone> ObFile<T> for ObFileOnDisk<T> {
                 #[cfg(feature = "logging")]
                 log::trace!("Frontmatter detected, parsing properties");
 
-                Some(serde_yml::from_str(properties)?)
+                Some(Cow::Owned(serde_yml::from_str(properties)?))
             }
             ResultParse::WithoutProperties => {
                 #[cfg(feature = "logging")]
