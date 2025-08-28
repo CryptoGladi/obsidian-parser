@@ -1,7 +1,8 @@
 //! In-memory representation of an Obsidian note file
 
 use crate::error::Error;
-use crate::obfile::{DefaultProperties, ObFile, ResultParse, parse_obfile};
+use crate::obfile::{DefaultProperties, ObFile, ObFileFlush, ResultParse, parse_obfile};
+use serde::Serialize;
 use serde::de::DeserializeOwned;
 use std::borrow::Cow;
 use std::path::Path;
@@ -132,11 +133,16 @@ impl<T: DeserializeOwned + Clone> ObFile<T> for ObFileInMemory<T> {
     }
 }
 
+impl<T: DeserializeOwned + Serialize + Clone> ObFileFlush<T> for ObFileInMemory<T> {}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::obfile::impl_tests::{impl_all_tests_from_file, impl_all_tests_from_string};
+    use crate::obfile::impl_tests::{
+        impl_all_tests_flush, impl_all_tests_from_file, impl_all_tests_from_string,
+    };
 
     impl_all_tests_from_string!(ObFileInMemory);
     impl_all_tests_from_file!(ObFileInMemory);
+    impl_all_tests_flush!(ObFileInMemory);
 }

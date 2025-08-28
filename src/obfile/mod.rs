@@ -4,8 +4,8 @@ pub mod obfile_in_memory;
 pub mod obfile_on_disk;
 
 use crate::error::Error;
-use serde::de::DeserializeOwned;
-use std::{borrow::Cow, collections::HashMap, path::Path};
+use serde::{Serialize, de::DeserializeOwned};
+use std::{borrow::Cow, collections::HashMap, fs::OpenOptions, io::Write, path::Path};
 
 pub(crate) type DefaultProperties = HashMap<String, serde_yml::Value>;
 
@@ -32,6 +32,9 @@ pub(crate) type DefaultProperties = HashMap<String, serde_yml::Value>;
 /// let properties = note.properties().unwrap().unwrap();
 /// println!("Note topic: {}", properties.topic);
 /// ```
+///
+/// # Other
+/// To write and modify ObFile to a file, use the [`ObFileFlush`] trait.
 pub trait ObFile<T = DefaultProperties>: Sized
 where
     T: DeserializeOwned + Clone,
@@ -119,6 +122,94 @@ pub trait ObFileDefault: ObFile<DefaultProperties> {
     /// # Errors
     /// - [`Error::Io`] for filesystem errors
     fn from_file_default<P: AsRef<Path>>(path: P) -> Result<Self, Error>;
+}
+
+/// Represents an Obsidian note file with frontmatter properties and content
+/// for flush to file
+///
+///To use this trait, `T` must implement [`serde::Serialize`]
+pub trait ObFileFlush<T = DefaultProperties>: ObFile<T>
+where
+    T: DeserializeOwned + Serialize + Clone,
+{
+    /// Flush only `content`
+    ///
+    /// Ignore if path is `None`
+    fn flush_content(&self, open_option: &OpenOptions) -> Result<(), Error> {
+        if let Some(path) = self.path() {
+            let text = std::fs::read_to_string(&path)?;
+            let parsed = parse_obfile(&text)?;
+
+            let mut file = open_option.open(path)?;
+
+            match parsed {
+                ResultParse::WithProperties {
+                    content: _,
+                    properties,
+                } => file.write_all(
+                    format!("---\n{}\n---\n{}", properties, self.content()?).as_bytes(),
+                )?,
+                ResultParse::WithoutProperties => file.write_all(self.content()?.as_bytes())?,
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Flush only `content`
+    ///
+    /// Ignore if path is `None`
+    fn flush_properties(&self, open_option: &OpenOptions) -> Result<(), Error> {
+        if let Some(path) = self.path() {
+            let text = std::fs::read_to_string(&path)?;
+            let parsed = parse_obfile(&text)?;
+
+            let mut file = open_option.open(path)?;
+
+            match parsed {
+                ResultParse::WithProperties {
+                    content,
+                    properties: _,
+                } => match self.properties()? {
+                    Some(properties) => file.write_all(
+                        format!(
+                            "---\n{}\n---\n{}",
+                            serde_yml::to_string(&properties)?,
+                            content
+                        )
+                        .as_bytes(),
+                    )?,
+                    None => file.write_all(self.content()?.as_bytes())?,
+                },
+                ResultParse::WithoutProperties => file.write_all(self.content()?.as_bytes())?,
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Flush [`ObFile`] to [`self.path()`]
+    ///
+    /// Ignore if path is `None`
+    fn flush(&self, open_option: &OpenOptions) -> Result<(), Error> {
+        if let Some(path) = self.path() {
+            let mut file = open_option.open(path)?;
+
+            match self.properties()? {
+                Some(properties) => file.write_all(
+                    format!(
+                        "---\n{}\n---\n{}",
+                        serde_yml::to_string(&properties)?,
+                        self.content()?
+                    )
+                    .as_bytes(),
+                )?,
+                None => file.write_all(self.content()?.as_bytes())?,
+            };
+        }
+
+        Ok(())
+    }
 }
 
 /// Parses Obsidian-style links in note content
@@ -487,6 +578,60 @@ Two test data";
         Ok(())
     }
 
+    pub(crate) fn flush_properties<T: ObFileFlush>() -> Result<(), Error> {
+        let mut test_file = NamedTempFile::new().unwrap();
+        test_file.write_all(TEST_DATA.as_bytes()).unwrap();
+
+        let file = T::from_file_default(test_file.path())?;
+        let open_options = OpenOptions::new().write(true).create(false).clone();
+        file.flush_properties(&open_options)?;
+        drop(file);
+
+        let file = T::from_file_default(test_file.path())?;
+        let properties = file.properties()?.unwrap();
+        assert_eq!(properties["topic"], "life");
+        assert_eq!(properties["created"], "2025-03-16");
+        assert_eq!(file.content().unwrap(), "Test data\n---\nTwo test data");
+
+        Ok(())
+    }
+
+    pub(crate) fn flush_content<T: ObFileFlush>() -> Result<(), Error> {
+        let mut test_file = NamedTempFile::new().unwrap();
+        test_file.write_all(TEST_DATA.as_bytes()).unwrap();
+
+        let file = T::from_file_default(test_file.path())?;
+        let open_options = OpenOptions::new().write(true).create(false).clone();
+        file.flush_content(&open_options)?;
+        drop(file);
+
+        let file = T::from_file_default(test_file.path())?;
+        let properties = file.properties()?.unwrap();
+        assert_eq!(properties["topic"], "life");
+        assert_eq!(properties["created"], "2025-03-16");
+        assert_eq!(file.content().unwrap(), "Test data\n---\nTwo test data");
+
+        Ok(())
+    }
+
+    pub(crate) fn flush<T: ObFileFlush>() -> Result<(), Error> {
+        let mut test_file = NamedTempFile::new().unwrap();
+        test_file.write_all(TEST_DATA.as_bytes()).unwrap();
+
+        let file = T::from_file_default(test_file.path())?;
+        let open_options = OpenOptions::new().write(true).create(false).clone();
+        file.flush(&open_options)?;
+        drop(file);
+
+        let file = T::from_file_default(test_file.path())?;
+        let properties = file.properties()?.unwrap();
+        assert_eq!(properties["topic"], "life");
+        assert_eq!(properties["created"], "2025-03-16");
+        assert_eq!(file.content().unwrap(), "Test data\n---\nTwo test data");
+
+        Ok(())
+    }
+
     macro_rules! impl_test_for_obfile {
         ($name_test:ident, $fn_test:ident, $impl_obfile:path) => {
             #[test]
@@ -501,7 +646,7 @@ Two test data";
     macro_rules! impl_all_tests_from_string {
         ($impl_obfile:path) => {
             #[allow(unused_imports)]
-            use crate::obfile::impl_tests::*;
+            use $crate::obfile::impl_tests::*;
 
             impl_test_for_obfile!(impl_from_string, from_string, $impl_obfile);
 
@@ -541,7 +686,7 @@ Two test data";
     macro_rules! impl_all_tests_from_file {
         ($impl_obfile:path) => {
             #[allow(unused_imports)]
-            use crate::obfile::impl_tests::*;
+            use $crate::obfile::impl_tests::*;
 
             impl_test_for_obfile!(impl_from_file, from_file, $impl_obfile);
             impl_test_for_obfile!(impl_from_file_note_name, from_file_note_name, $impl_obfile);
@@ -574,6 +719,18 @@ Two test data";
         };
     }
 
+    macro_rules! impl_all_tests_flush {
+        ($impl_obfile:path) => {
+            #[allow(unused_imports)]
+            use $crate::obfile::impl_tests::*;
+
+            impl_test_for_obfile!(impl_flush, flush, $impl_obfile);
+            impl_test_for_obfile!(impl_flush_content, flush_content, $impl_obfile);
+            impl_test_for_obfile!(impl_flush_properties, flush_properties, $impl_obfile);
+        };
+    }
+
+    pub(crate) use impl_all_tests_flush;
     pub(crate) use impl_all_tests_from_file;
     pub(crate) use impl_all_tests_from_string;
 }

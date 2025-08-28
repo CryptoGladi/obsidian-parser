@@ -1,6 +1,6 @@
 [package]
 name = "obsidian-parser"
-version = "0.4.1"
+version = "0.4.2"
 edition = "2024"
 description = "Blazingly fast Obsidian vault parser with graph analysis"
 repository = "https://github.com/CryptoGladi/obsidian-parser"

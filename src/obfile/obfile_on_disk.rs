@@ -1,7 +1,8 @@
 //! On-disk representation of an Obsidian note file
 
 use crate::error::Error;
-use crate::obfile::{DefaultProperties, ObFile, ResultParse, parse_obfile};
+use crate::obfile::{DefaultProperties, ObFile, ObFileFlush, ResultParse, parse_obfile};
+use serde::Serialize;
 use serde::de::DeserializeOwned;
 use std::borrow::Cow;
 use std::marker::PhantomData;
@@ -149,15 +150,20 @@ impl<T: DeserializeOwned + Clone> ObFile<T> for ObFileOnDisk<T> {
     }
 }
 
+impl<T: DeserializeOwned + Serialize + Clone> ObFileFlush<T> for ObFileOnDisk<T> {}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::obfile::ObFileDefault;
-    use crate::obfile::impl_tests::{from_file, from_file_with_unicode, impl_test_for_obfile};
+    use crate::obfile::impl_tests::{
+        from_file, from_file_with_unicode, impl_all_tests_flush, impl_test_for_obfile,
+    };
     use crate::test_utils::init_test_logger;
     use std::io::Write;
     use tempfile::NamedTempFile;
 
+    impl_all_tests_flush!(ObFileOnDisk);
     impl_test_for_obfile!(impl_from_file, from_file, ObFileOnDisk);
 
     impl_test_for_obfile!(
