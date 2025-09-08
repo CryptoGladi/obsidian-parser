@@ -152,13 +152,29 @@ where
     F: ObFile<T> + Send,
 {
     #[cfg(feature = "rayon")]
-    fn parse_files<L>(files: &[PathBuf], f: L) -> Vec<F>
+    fn parse_files<L>(files: &[PathBuf], f: L) -> Result<Vec<F>, Error>
     where
-        L: Fn(&PathBuf) -> Option<F> + Sync + Send,
+        L: Fn(&PathBuf) -> Result<F, Error> + Sync + Send,
     {
         use rayon::prelude::*;
 
-        files.par_iter().filter_map(f).collect()
+        files
+            .into_par_iter()
+            .map(|file| f(file))
+            .try_fold(
+                || Vec::new(),
+                |mut acc, result| {
+                    acc.push(result?);
+                    Ok(acc)
+                },
+            )
+            .try_reduce(
+                || Vec::new(),
+                |mut a, mut b| {
+                    a.append(&mut b);
+                    Ok(a)
+                },
+            )
     }
 
     #[cfg(not(feature = "rayon"))]
@@ -166,7 +182,23 @@ where
     where
         L: Fn(&PathBuf) -> Option<F>,
     {
-        files.iter().filter_map(f).collect()
+        files
+            .into_iter()
+            .map(|file| f(file))
+            .try_fold(
+                || Vec::new(),
+                |mut acc, result| {
+                    acc.push(result?);
+                    Ok(acc)
+                },
+            )
+            .try_reduce(
+                || Vec::new(),
+                |mut a, mut b| {
+                    a.append(&mut b);
+                    Ok(a)
+                },
+            )
     }
 
     /// Opens and parses an Obsidian vault
@@ -180,8 +212,7 @@ where
     /// # Errors
     /// Returns `Error` if:
     /// - Path doesn't exist or isn't a directory
-    ///
-    /// Files that fail parsing are skipped
+    /// - File parse is not correct
     ///
     /// # Memory Considerations
     /// For vaults with 1000+ notes, prefer [`ObFileOnDisk`] (default) over [`ObFileInMemory`](crate::prelude::ObFileInMemory) as it:
@@ -202,15 +233,7 @@ where
 
         #[allow(unused_variables)]
         #[allow(clippy::manual_ok_err)]
-        let files = Self::parse_files(&files_for_parse, |file| match F::from_file(file) {
-            Ok(file) => Some(file),
-            Err(e) => {
-                #[cfg(feature = "logging")]
-                log::warn!("Failed to parse {}: {}", file.display(), e);
-
-                None
-            }
-        });
+        let files = Self::parse_files(&files_for_parse, |file| F::from_file(file))?;
 
         #[cfg(feature = "logging")]
         log::info!("Parsed {} files", files.len());
@@ -296,8 +319,11 @@ impl Vault<DefaultProperties, ObFileOnDisk> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{test_utils::init_test_logger, vault::vault_test::create_test_vault};
-    use std::fs::File;
+    use crate::{
+        prelude::ObFileInMemory, test_utils::init_test_logger, vault::vault_test::create_test_vault,
+    };
+    use serde::Deserialize;
+    use std::{fs::File, io::Write};
 
     #[test]
     fn open() {
@@ -330,6 +356,28 @@ mod tests {
 
         assert_eq!(vault.files.len(), vault_files.len());
         assert_eq!(vault.path, vault_path.path());
+    }
+
+    #[derive(Clone, Deserialize)]
+    pub struct TestProperties {
+        #[allow(dead_code)]
+        not_correct: String,
+    }
+
+    #[test]
+    fn open_with_error() {
+        init_test_logger();
+
+        let (vault_path, _) = create_test_vault().unwrap();
+        let mut file = File::create(vault_path.path().join("not_file.md")).unwrap();
+        file.write_all(b"---\nnot: \n---\ndata").unwrap(); // Not UTF-8
+
+        let error_open =
+            Vault::<TestProperties, ObFileInMemory<TestProperties>>::open(vault_path.path())
+                .err()
+                .unwrap();
+
+        assert!(matches!(error_open, Error::Yaml(_)));
     }
 
     #[test]
