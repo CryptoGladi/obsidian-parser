@@ -178,27 +178,17 @@ where
     }
 
     #[cfg(not(feature = "rayon"))]
-    fn parse_files<L>(files: &[PathBuf], f: L) -> Vec<F>
+    fn parse_files<L>(files: &[PathBuf], f: L) -> Result<Vec<F>, Error>
     where
-        L: Fn(&PathBuf) -> Option<F>,
+        L: Fn(&PathBuf) -> Result<F, Error> + Sync + Send,
     {
         files
             .into_iter()
             .map(|file| f(file))
-            .try_fold(
-                || Vec::new(),
-                |mut acc, result| {
-                    acc.push(result?);
-                    Ok(acc)
-                },
-            )
-            .try_reduce(
-                || Vec::new(),
-                |mut a, mut b| {
-                    a.append(&mut b);
-                    Ok(a)
-                },
-            )
+            .try_fold(Vec::new(), |mut acc, result| {
+                acc.push(result?);
+                Ok::<Vec<F>, Error>(acc)
+            })
     }
 
     /// Opens and parses an Obsidian vault
