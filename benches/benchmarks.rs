@@ -64,7 +64,7 @@ fn vault_open_benchmark(c: &mut Criterion) {
     c.bench_function("vault_open_on_disk", |b| {
         b.iter(|| {
             let vault: Vault<NoteProperties, ObFileOnDisk<NoteProperties>> =
-                Vault::open(black_box(path)).unwrap();
+                Vault::open_ignore(black_box(path)).unwrap();
             black_box(vault);
         })
     });
@@ -72,7 +72,7 @@ fn vault_open_benchmark(c: &mut Criterion) {
     c.bench_function("vault_open_in_memory", |b| {
         b.iter(|| {
             let vault: Vault<NoteProperties, ObFileInMemory<NoteProperties>> =
-                Vault::open(black_box(path)).unwrap();
+                Vault::open_ignore(black_box(path)).unwrap();
             black_box(vault);
         })
     });
@@ -86,7 +86,7 @@ fn graph_build_benchmark(c: &mut Criterion) {
     let path = temp_dir.path();
 
     let vault_on_disk: Vault<NoteProperties, ObFileOnDisk<NoteProperties>> =
-        Vault::open(black_box(path)).unwrap();
+        Vault::open(path).unwrap();
     c.bench_function("graph_build_on_disk", |b| {
         b.iter(|| {
             let graph = vault_on_disk.get_digraph();
@@ -95,7 +95,7 @@ fn graph_build_benchmark(c: &mut Criterion) {
     });
 
     let vault_in_memory: Vault<NoteProperties, ObFileInMemory<NoteProperties>> =
-        Vault::open(black_box(path)).unwrap();
+        Vault::open(path).unwrap();
     c.bench_function("graph_build_in_memory", |b| {
         b.iter(|| {
             let graph = vault_in_memory.get_digraph();

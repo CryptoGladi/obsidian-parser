@@ -34,7 +34,7 @@ pub(crate) type DefaultProperties = HashMap<String, serde_yml::Value>;
 /// ```
 ///
 /// # Other
-/// To write and modify ObFile to a file, use the [`ObFileFlush`] trait.
+/// To write and modify [`ObFile`] to a file, use the [`ObFileFlush`] trait.
 pub trait ObFile<T = DefaultProperties>: Sized
 where
     T: DeserializeOwned + Clone,
@@ -127,7 +127,7 @@ pub trait ObFileDefault: ObFile<DefaultProperties> {
 /// Represents an Obsidian note file with frontmatter properties and content
 /// for flush to file
 ///
-///To use this trait, `T` must implement [`serde::Serialize`]
+/// To use this trait, `T` must implement [`serde::Serialize`]
 pub trait ObFileFlush<T = DefaultProperties>: ObFile<T>
 where
     T: DeserializeOwned + Serialize + Clone,
@@ -135,6 +135,9 @@ where
     /// Flush only `content`
     ///
     /// Ignore if path is `None`
+    ///
+    /// # Errors
+    /// - [`Error::Io`] for filesystem errors
     fn flush_content(&self, open_option: &OpenOptions) -> Result<(), Error> {
         if let Some(path) = self.path() {
             let text = std::fs::read_to_string(&path)?;
@@ -159,6 +162,8 @@ where
     /// Flush only `content`
     ///
     /// Ignore if path is `None`
+    /// # Errors
+    /// - [`Error::Io`] for filesystem errors
     fn flush_properties(&self, open_option: &OpenOptions) -> Result<(), Error> {
         if let Some(path) = self.path() {
             let text = std::fs::read_to_string(&path)?;
@@ -191,6 +196,8 @@ where
     /// Flush [`ObFile`] to [`self.path()`]
     ///
     /// Ignore if path is `None`
+    /// # Errors
+    /// - [`Error::Io`] for filesystem errors
     fn flush(&self, open_option: &OpenOptions) -> Result<(), Error> {
         if let Some(path) = self.path() {
             let mut file = open_option.open(path)?;
@@ -205,7 +212,7 @@ where
                     .as_bytes(),
                 )?,
                 None => file.write_all(self.content()?.as_bytes())?,
-            };
+            }
         }
 
         Ok(())
