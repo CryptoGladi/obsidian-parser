@@ -22,7 +22,7 @@
 //! Enable [`petgraph`](https://docs.rs/petgraph/latest/petgraph) feature in Cargo.toml:
 //! ```toml
 //! [dependencies]
-//! obsidian-parser = { version = "0.4", features = ["petgraph"] }
+//! obsidian-parser = { version = "0.5", features = ["petgraph"] }
 //! ```
 //!
 //! # Examples
