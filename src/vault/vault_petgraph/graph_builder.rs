@@ -7,23 +7,21 @@ use petgraph::{EdgeType, Graph};
 use serde::de::DeserializeOwned;
 use std::path::Path;
 
-pub struct GraphBuilder<'a, T, F, Ty>
+pub struct GraphBuilder<'a, F, Ty>
 where
-    T: DeserializeOwned + Clone,
-    F: ObFile<T> + Send + Sync,
+    F: ObFile + Send + Sync,
     Ty: EdgeType + Send,
 {
-    vault: &'a Vault<T, F>,
+    vault: &'a Vault<F>,
     graph: Graph<String, (), Ty>,
 }
 
-impl<'a, T, F, Ty> GraphBuilder<'a, T, F, Ty>
+impl<'a, F, Ty> GraphBuilder<'a, F, Ty>
 where
-    T: DeserializeOwned + Clone,
-    F: ObFile<T> + Send + Sync,
+    F: ObFile + Send + Sync,
     Ty: EdgeType + Send,
 {
-    pub(crate) const fn new(vault: &'a Vault<T, F>, graph: Graph<String, (), Ty>) -> Self {
+    pub(crate) const fn new(vault: &'a Vault<F>, graph: Graph<String, (), Ty>) -> Self {
         Self { vault, graph }
     }
 

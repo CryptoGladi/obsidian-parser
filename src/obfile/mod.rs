@@ -14,9 +14,6 @@ pub(crate) type DefaultProperties = HashMap<String, serde_yml::Value>;
 /// This trait provides a standardized interface for working with Obsidian markdown files,
 /// handling frontmatter parsing, content extraction, and file operations.
 ///
-/// # Type Parameters
-/// - `T`: Frontmatter properties type
-///
 /// # Example
 /// ```no_run
 /// use obsidian_parser::prelude::*;
@@ -35,10 +32,10 @@ pub(crate) type DefaultProperties = HashMap<String, serde_yml::Value>;
 ///
 /// # Other
 /// To write and modify [`ObFile`] to a file, use the [`ObFileFlush`] trait.
-pub trait ObFile<T = DefaultProperties>: Sized
-where
-    T: DeserializeOwned + Clone,
-{
+pub trait ObFile: Sized {
+    /// Frontmatter properties type
+    type Properties: DeserializeOwned + Serialize + Clone;
+
     /// Returns the main content body of the note (excluding frontmatter)
     ///
     /// # Implementation Notes
@@ -60,7 +57,7 @@ where
     ///
     /// # Errors
     /// Usually errors are related to [`Error::Io`]
-    fn properties(&self) -> Result<Option<Cow<'_, T>>, Error>;
+    fn properties(&self) -> Result<Option<Cow<'_, Self::Properties>>, Error>;
 
     /// Get note name
     fn note_name(&self) -> Option<String> {
@@ -109,7 +106,7 @@ where
 ///
 /// Automatically implemented for all `ObFile<HashMap<..>>` types.
 /// Provides identical interface with explicitly named methods.
-pub trait ObFileDefault: ObFile<DefaultProperties> {
+pub trait ObFileDefault: ObFile<Properties = DefaultProperties> {
     /// Same as [`ObFile::from_string`] with default properties type
     ///
     /// # Errors
@@ -128,10 +125,7 @@ pub trait ObFileDefault: ObFile<DefaultProperties> {
 /// for flush to file
 ///
 /// To use this trait, `T` must implement [`serde::Serialize`]
-pub trait ObFileFlush<T = DefaultProperties>: ObFile<T>
-where
-    T: DeserializeOwned + Serialize + Clone,
-{
+pub trait ObFileFlush: ObFile {
     /// Flush only `content`
     ///
     /// Ignore if path is `None`
@@ -255,7 +249,7 @@ pub fn parse_links(text: &str) -> impl Iterator<Item = &str> {
 
 impl<T> ObFileDefault for T
 where
-    T: ObFile<DefaultProperties>,
+    T: ObFile<Properties = DefaultProperties>,
 {
     fn from_string_default<P: AsRef<Path>>(text: &str, path: Option<P>) -> Result<Self, Error> {
         Self::from_string(text, path)
@@ -405,7 +399,10 @@ Test data\n\
 ---\n\
 Two test data";
 
-    pub(crate) fn from_string<T: ObFile>() -> Result<(), Error> {
+    pub(crate) fn from_string<T>() -> Result<(), Error>
+    where
+        T: ObFile<Properties = DefaultProperties>,
+    {
         init_test_logger();
         let file = T::from_string(TEST_DATA, None::<&str>)?;
         let properties = file.properties().unwrap().unwrap();
@@ -426,7 +423,10 @@ Two test data";
         Ok(())
     }
 
-    pub(crate) fn from_string_without_properties<T: ObFile>() -> Result<(), Error> {
+    pub(crate) fn from_string_without_properties<T>() -> Result<(), Error>
+    where
+        T: ObFile<Properties = DefaultProperties>,
+    {
         init_test_logger();
         let test_data = "TEST_DATA";
         let file = T::from_string(test_data, None::<&str>)?;
@@ -462,7 +462,10 @@ Two test data";
         Ok(())
     }
 
-    pub(crate) fn from_string_with_unicode<T: ObFile>() -> Result<(), Error> {
+    pub(crate) fn from_string_with_unicode<T>() -> Result<(), Error>
+    where
+        T: ObFile<Properties = DefaultProperties>,
+    {
         init_test_logger();
         let data = "---\ndata: 💩\n---\nSuper data 💩💩💩";
         let file = T::from_string(data, None::<&str>)?;
@@ -473,7 +476,10 @@ Two test data";
         Ok(())
     }
 
-    pub(crate) fn from_string_space_with_properties<T: ObFile>() -> Result<(), Error> {
+    pub(crate) fn from_string_space_with_properties<T>() -> Result<(), Error>
+    where
+        T: ObFile<Properties = DefaultProperties>,
+    {
         init_test_logger();
         let data = "  ---\ntest: test-data\n---\n";
         let file = T::from_string(data, None::<&str>)?;
@@ -484,7 +490,10 @@ Two test data";
         Ok(())
     }
 
-    pub(crate) fn from_file<T: ObFile>() -> Result<(), Error> {
+    pub(crate) fn from_file<T>() -> Result<(), Error>
+    where
+        T: ObFile<Properties = DefaultProperties>,
+    {
         init_test_logger();
         let mut temp_file = NamedTempFile::new().unwrap();
         temp_file.write_all(b"TEST_DATA").unwrap();
@@ -496,7 +505,10 @@ Two test data";
         Ok(())
     }
 
-    pub(crate) fn from_file_note_name<T: ObFile>() -> Result<(), Error> {
+    pub(crate) fn from_file_note_name<T>() -> Result<(), Error>
+    where
+        T: ObFile<Properties = DefaultProperties>,
+    {
         init_test_logger();
         let mut temp_file = NamedTempFile::new().unwrap();
         temp_file.write_all(b"TEST_DATA").unwrap();
@@ -514,7 +526,10 @@ Two test data";
         Ok(())
     }
 
-    pub(crate) fn from_file_without_properties<T: ObFile>() -> Result<(), Error> {
+    pub(crate) fn from_file_without_properties<T>() -> Result<(), Error>
+    where
+        T: ObFile<Properties = DefaultProperties>,
+    {
         init_test_logger();
         let test_data = "TEST_DATA";
         let mut test_file = NamedTempFile::new().unwrap();
@@ -545,7 +560,10 @@ Two test data";
         Ok(())
     }
 
-    pub(crate) fn from_file_invalid_format<T: ObFile>() -> Result<(), Error> {
+    pub(crate) fn from_file_invalid_format<T>() -> Result<(), Error>
+    where
+        T: ObFile<Properties = DefaultProperties>,
+    {
         init_test_logger();
         let broken_data = "---\n";
         let mut test_file = NamedTempFile::new().unwrap();
@@ -558,7 +576,10 @@ Two test data";
         Ok(())
     }
 
-    pub(crate) fn from_file_with_unicode<T: ObFile>() -> Result<(), Error> {
+    pub(crate) fn from_file_with_unicode<T>() -> Result<(), Error>
+    where
+        T: ObFile<Properties = DefaultProperties>,
+    {
         init_test_logger();
         let data = "---\ndata: 💩\n---\nSuper data 💩💩💩";
         let mut test_file = NamedTempFile::new().unwrap();
@@ -572,7 +593,10 @@ Two test data";
         Ok(())
     }
 
-    pub(crate) fn from_file_space_with_properties<T: ObFile>() -> Result<(), Error> {
+    pub(crate) fn from_file_space_with_properties<T>() -> Result<(), Error>
+    where
+        T: ObFile<Properties = DefaultProperties>,
+    {
         init_test_logger();
         let data = "  ---\ntest: test-data\n---\n";
         let mut test_file = NamedTempFile::new().unwrap();
@@ -585,7 +609,10 @@ Two test data";
         Ok(())
     }
 
-    pub(crate) fn flush_properties<T: ObFileFlush>() -> Result<(), Error> {
+    pub(crate) fn flush_properties<T>() -> Result<(), Error>
+    where
+        T: ObFileFlush<Properties = DefaultProperties>,
+    {
         let mut test_file = NamedTempFile::new().unwrap();
         test_file.write_all(TEST_DATA.as_bytes()).unwrap();
 
@@ -603,7 +630,10 @@ Two test data";
         Ok(())
     }
 
-    pub(crate) fn flush_content<T: ObFileFlush>() -> Result<(), Error> {
+    pub(crate) fn flush_content<T>() -> Result<(), Error>
+    where
+        T: ObFileFlush<Properties = DefaultProperties>,
+    {
         let mut test_file = NamedTempFile::new().unwrap();
         test_file.write_all(TEST_DATA.as_bytes()).unwrap();
 
@@ -621,7 +651,10 @@ Two test data";
         Ok(())
     }
 
-    pub(crate) fn flush<T: ObFileFlush>() -> Result<(), Error> {
+    pub(crate) fn flush<T>() -> Result<(), Error>
+    where
+        T: ObFileFlush<Properties = DefaultProperties>,
+    {
         let mut test_file = NamedTempFile::new().unwrap();
         test_file.write_all(TEST_DATA.as_bytes()).unwrap();
 

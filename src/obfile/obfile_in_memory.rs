@@ -26,7 +26,7 @@ use std::path::PathBuf;
 #[derive(Debug, Default, PartialEq, Eq, Clone)]
 pub struct ObFileInMemory<T = DefaultProperties>
 where
-    T: DeserializeOwned + Clone,
+    T: DeserializeOwned + Serialize + Clone,
 {
     /// Markdown content body (without frontmatter)
     content: String,
@@ -38,7 +38,9 @@ where
     properties: Option<T>,
 }
 
-impl<T: DeserializeOwned + Clone> ObFile<T> for ObFileInMemory<T> {
+impl<T: DeserializeOwned + Serialize + Clone> ObFile for ObFileInMemory<T> {
+    type Properties = T;
+
     #[inline]
     fn content(&self) -> Result<Cow<'_, str>, Error> {
         Ok(Cow::Borrowed(&self.content))
@@ -133,7 +135,7 @@ impl<T: DeserializeOwned + Clone> ObFile<T> for ObFileInMemory<T> {
     }
 }
 
-impl<T: DeserializeOwned + Serialize + Clone> ObFileFlush<T> for ObFileInMemory<T> {}
+impl<T: DeserializeOwned + Serialize + Clone> ObFileFlush for ObFileInMemory<T> {}
 
 #[cfg(test)]
 mod tests {

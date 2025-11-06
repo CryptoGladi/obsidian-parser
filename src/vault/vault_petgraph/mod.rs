@@ -84,13 +84,11 @@ use super::Vault;
 use crate::obfile::ObFile;
 use graph_builder::GraphBuilder;
 use petgraph::graph::{DiGraph, UnGraph};
-use serde::de::DeserializeOwned;
 use std::marker::{Send, Sync};
 
-impl<T, F> Vault<T, F>
+impl<F> Vault<F>
 where
-    T: DeserializeOwned + Clone,
-    F: ObFile<T> + Send + Sync,
+    F: ObFile + Send + Sync,
 {
     /// Builds directed graph representing note relationships
     ///

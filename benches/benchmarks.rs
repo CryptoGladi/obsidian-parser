@@ -1,12 +1,12 @@
 use criterion::{Criterion, criterion_group, criterion_main};
 use obsidian_parser::prelude::*;
 use rand::Rng;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::hint::black_box;
 use std::io::Write;
 use tempfile::TempDir;
 
-#[derive(Default, Debug, Clone, Deserialize)]
+#[derive(Default, Debug, Clone, Deserialize, Serialize)]
 struct NoteProperties {
     id: usize,
 }
@@ -63,7 +63,7 @@ fn vault_open_benchmark(c: &mut Criterion) {
 
     c.bench_function("vault_open_on_disk", |b| {
         b.iter(|| {
-            let vault: Vault<NoteProperties, ObFileOnDisk<NoteProperties>> =
+            let vault: Vault<ObFileOnDisk<NoteProperties>> =
                 Vault::open_ignore(black_box(path)).unwrap();
             black_box(vault);
         })
@@ -71,7 +71,7 @@ fn vault_open_benchmark(c: &mut Criterion) {
 
     c.bench_function("vault_open_in_memory", |b| {
         b.iter(|| {
-            let vault: Vault<NoteProperties, ObFileInMemory<NoteProperties>> =
+            let vault: Vault<ObFileInMemory<NoteProperties>> =
                 Vault::open_ignore(black_box(path)).unwrap();
             black_box(vault);
         })
@@ -85,8 +85,7 @@ fn graph_build_benchmark(c: &mut Criterion) {
     let temp_dir = generate_test_vault(num_files, links_per_file);
     let path = temp_dir.path();
 
-    let vault_on_disk: Vault<NoteProperties, ObFileOnDisk<NoteProperties>> =
-        Vault::open(path).unwrap();
+    let vault_on_disk: Vault<ObFileOnDisk<NoteProperties>> = Vault::open(path).unwrap();
     c.bench_function("graph_build_on_disk", |b| {
         b.iter(|| {
             let graph = vault_on_disk.get_digraph();
@@ -94,8 +93,7 @@ fn graph_build_benchmark(c: &mut Criterion) {
         })
     });
 
-    let vault_in_memory: Vault<NoteProperties, ObFileInMemory<NoteProperties>> =
-        Vault::open(path).unwrap();
+    let vault_in_memory: Vault<ObFileInMemory<NoteProperties>> = Vault::open(path).unwrap();
     c.bench_function("graph_build_in_memory", |b| {
         b.iter(|| {
             let graph = vault_in_memory.get_digraph();

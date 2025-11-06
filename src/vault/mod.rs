@@ -115,25 +115,20 @@ use std::{marker::PhantomData, path::PathBuf};
 /// - `T`: Type for frontmatter properties
 /// - `F`: File representation type
 #[derive(Debug, Default, PartialEq, Eq, Clone)]
-pub struct Vault<T, F = ObFileOnDisk<T>>
+pub struct Vault<F = ObFileOnDisk<DefaultProperties>>
 where
-    T: DeserializeOwned + Clone,
-    F: ObFile<T> + Send,
+    F: ObFile + Send,
 {
     /// All files in the vault
     pub files: Vec<F>,
 
     /// Path to vault root directory
     pub path: PathBuf,
-
-    /// Phantom data
-    pub phantom: PhantomData<T>,
 }
 
-impl<T, F> Vault<T, F>
+impl<F> Vault<F>
 where
-    T: DeserializeOwned + Clone,
-    F: ObFile<T> + Send,
+    F: ObFile + Send,
 {
     /// Returns duplicated note name
     ///

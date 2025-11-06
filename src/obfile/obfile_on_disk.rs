@@ -37,7 +37,7 @@ use std::path::PathBuf;
 #[derive(Debug, Default, PartialEq, Eq, Clone)]
 pub struct ObFileOnDisk<T = DefaultProperties>
 where
-    T: DeserializeOwned + Clone,
+    T: DeserializeOwned + Serialize + Clone,
 {
     /// Absolute path to the source Markdown file
     path: PathBuf,
@@ -45,7 +45,9 @@ where
     phantom: PhantomData<T>,
 }
 
-impl<T: DeserializeOwned + Clone> ObFile<T> for ObFileOnDisk<T> {
+impl<T: DeserializeOwned + Serialize + Clone> ObFile for ObFileOnDisk<T> {
+    type Properties = T;
+
     /// Returns the note's content body (without frontmatter)
     ///
     /// # Errors
@@ -150,7 +152,7 @@ impl<T: DeserializeOwned + Clone> ObFile<T> for ObFileOnDisk<T> {
     }
 }
 
-impl<T: DeserializeOwned + Serialize + Clone> ObFileFlush<T> for ObFileOnDisk<T> {}
+impl<T: DeserializeOwned + Serialize + Clone> ObFileFlush for ObFileOnDisk<T> {}
 
 #[cfg(test)]
 mod tests {
