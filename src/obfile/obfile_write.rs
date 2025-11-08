@@ -70,7 +70,7 @@ where
         Ok(())
     }
 
-    /// Flush [`ObFile`] to [`self.path()`]
+    /// Flush [`ObFile`] to [`ObFile::path`]
     ///
     /// Ignore if path is `None`
     /// # Errors
