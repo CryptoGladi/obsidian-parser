@@ -1,12 +1,13 @@
 //! In-memory representation of an Obsidian note file
 
-use crate::error::Error;
-use crate::obfile::{DefaultProperties, ObFile, ObFileFlush, ResultParse, parse_obfile};
-use serde::Serialize;
-use serde::de::DeserializeOwned;
-use std::borrow::Cow;
-use std::path::Path;
-use std::path::PathBuf;
+use std::{
+    borrow::Cow,
+    path::{Path, PathBuf},
+};
+
+use super::{DefaultProperties, ObFile, ObFileRead, parse_obfile};
+use crate::{error::Error, obfile::ResultParse};
+use serde::{Serialize, de::DeserializeOwned};
 
 /// In-memory representation of an Obsidian note file
 ///
@@ -26,7 +27,7 @@ use std::path::PathBuf;
 #[derive(Debug, Default, PartialEq, Eq, Clone)]
 pub struct ObFileInMemory<T = DefaultProperties>
 where
-    T: DeserializeOwned + Serialize + Clone,
+    T: Clone,
 {
     /// Markdown content body (without frontmatter)
     content: String,
@@ -38,8 +39,16 @@ where
     properties: Option<T>,
 }
 
-impl<T: DeserializeOwned + Serialize + Clone> ObFile for ObFileInMemory<T> {
+impl<T> ObFile for ObFileInMemory<T>
+where
+    T: Clone,
+{
     type Properties = T;
+
+    #[inline]
+    fn properties(&self) -> Result<Option<Cow<'_, T>>, Error> {
+        Ok(self.properties.as_ref().map(|p| Cow::Borrowed(p)))
+    }
 
     #[inline]
     fn content(&self) -> Result<Cow<'_, str>, Error> {
@@ -50,12 +59,12 @@ impl<T: DeserializeOwned + Serialize + Clone> ObFile for ObFileInMemory<T> {
     fn path(&self) -> Option<Cow<'_, Path>> {
         self.path.as_ref().map(|p| Cow::Borrowed(p.as_path()))
     }
+}
 
-    #[inline]
-    fn properties(&self) -> Result<Option<Cow<'_, T>>, Error> {
-        Ok(self.properties.as_ref().map(|p| Cow::Borrowed(p)))
-    }
-
+impl<T> ObFileRead for ObFileInMemory<T>
+where
+    T: DeserializeOwned + Clone,
+{
     /// Parses a string into an in-memory Obsidian note representation
     ///
     /// # Arguments
@@ -134,8 +143,6 @@ impl<T: DeserializeOwned + Serialize + Clone> ObFile for ObFileInMemory<T> {
         }
     }
 }
-
-impl<T: DeserializeOwned + Serialize + Clone> ObFileFlush for ObFileInMemory<T> {}
 
 #[cfg(test)]
 mod tests {

@@ -1,8 +1,9 @@
 //! On-disk representation of an Obsidian note file
 
 use crate::error::Error;
-use crate::obfile::{DefaultProperties, ObFile, ObFileFlush, ResultParse, parse_obfile};
-use serde::Serialize;
+use crate::obfile::{
+    DefaultProperties, ObFile, ObFileRead, ObFileWrite, ResultParse, parse_obfile,
+};
 use serde::de::DeserializeOwned;
 use std::borrow::Cow;
 use std::marker::PhantomData;
@@ -37,7 +38,7 @@ use std::path::PathBuf;
 #[derive(Debug, Default, PartialEq, Eq, Clone)]
 pub struct ObFileOnDisk<T = DefaultProperties>
 where
-    T: DeserializeOwned + Serialize + Clone,
+    T: Clone + DeserializeOwned,
 {
     /// Absolute path to the source Markdown file
     path: PathBuf,
@@ -45,8 +46,44 @@ where
     phantom: PhantomData<T>,
 }
 
-impl<T: DeserializeOwned + Serialize + Clone> ObFile for ObFileOnDisk<T> {
+impl<T> ObFile for ObFileOnDisk<T>
+where
+    T: DeserializeOwned + Clone,
+{
     type Properties = T;
+
+    /// Parses YAML frontmatter directly from disk
+    ///
+    /// # Errors
+    /// - If properties can't be deserialized
+    /// - If file doesn't exist
+    /// - On filesystem errors
+    fn properties(&self) -> Result<Option<Cow<'_, T>>, Error> {
+        let data = std::fs::read(&self.path)?;
+
+        // SAFETY: Notes files in Obsidian (`*.md`) ensure that the file is encoded in UTF-8
+        let raw_text = unsafe { String::from_utf8_unchecked(data) };
+
+        let result = match parse_obfile(&raw_text)? {
+            ResultParse::WithProperties {
+                content: _,
+                properties,
+            } => {
+                #[cfg(feature = "logging")]
+                log::trace!("Frontmatter detected, parsing properties");
+
+                Some(Cow::Owned(serde_yml::from_str(properties)?))
+            }
+            ResultParse::WithoutProperties => {
+                #[cfg(feature = "logging")]
+                log::trace!("No frontmatter found, storing raw content");
+
+                None
+            }
+        };
+
+        Ok(result)
+    }
 
     /// Returns the note's content body (without frontmatter)
     ///
@@ -87,56 +124,16 @@ impl<T: DeserializeOwned + Serialize + Clone> ObFile for ObFileOnDisk<T> {
         Ok(Cow::Owned(result))
     }
 
-    /// Parses YAML frontmatter directly from disk
-    ///
-    /// # Errors
-    /// - If properties can't be deserialized
-    /// - If file doesn't exist
-    /// - On filesystem errors
-    fn properties(&self) -> Result<Option<Cow<'_, T>>, Error> {
-        let data = std::fs::read(&self.path)?;
-
-        // SAFETY: Notes files in Obsidian (`*.md`) ensure that the file is encoded in UTF-8
-        let raw_text = unsafe { String::from_utf8_unchecked(data) };
-
-        let result = match parse_obfile(&raw_text)? {
-            ResultParse::WithProperties {
-                content: _,
-                properties,
-            } => {
-                #[cfg(feature = "logging")]
-                log::trace!("Frontmatter detected, parsing properties");
-
-                Some(Cow::Owned(serde_yml::from_str(properties)?))
-            }
-            ResultParse::WithoutProperties => {
-                #[cfg(feature = "logging")]
-                log::trace!("No frontmatter found, storing raw content");
-
-                None
-            }
-        };
-
-        Ok(result)
-    }
-
     #[inline]
     fn path(&self) -> Option<Cow<'_, Path>> {
         Some(Cow::Borrowed(&self.path))
     }
+}
 
-    /// Creates instance from text (requires path!)
-    ///
-    /// Dont use this function. Use `from_file`
-    fn from_string<P: AsRef<std::path::Path>>(
-        _raw_text: &str,
-        path: Option<P>,
-    ) -> Result<Self, Error> {
-        let path_buf = path.expect("Path is required").as_ref().to_path_buf();
-
-        Self::from_file(path_buf)
-    }
-
+impl<T> ObFileRead for ObFileOnDisk<T>
+where
+    T: DeserializeOwned + Clone,
+{
     /// Creates instance from path
     fn from_file<P: AsRef<std::path::Path>>(path: P) -> Result<Self, Error> {
         let path_buf = path.as_ref().to_path_buf();
@@ -150,9 +147,19 @@ impl<T: DeserializeOwned + Serialize + Clone> ObFile for ObFileOnDisk<T> {
             phantom: PhantomData,
         })
     }
-}
 
-impl<T: DeserializeOwned + Serialize + Clone> ObFileFlush for ObFileOnDisk<T> {}
+    /// Creates instance from text (requires path!)
+    ///
+    /// Dont use this function. Use `from_file`
+    fn from_string<P: AsRef<std::path::Path>>(
+        _raw_text: &str,
+        path: Option<P>,
+    ) -> Result<Self, Error> {
+        let path_buf = path.expect("Path is required").as_ref().to_path_buf();
+
+        Self::from_file(path_buf)
+    }
+}
 
 #[cfg(test)]
 mod tests {

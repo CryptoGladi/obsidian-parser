@@ -66,7 +66,7 @@
 //! }
 //!
 //! // Load vault with custom properties
-//! let vault: Vault<NoteProperties> = Vault::open("/path/to/vault").unwrap();
+//! let vault: VaultInMemory<NoteProperties> = Vault::open("/path/to/vault").unwrap();
 //!
 //! // Build graph filtering by property
 //! let mut graph = vault.get_digraph();

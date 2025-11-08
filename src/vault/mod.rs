@@ -3,7 +3,7 @@
 //! Provides functionality for working with entire Obsidian vaults (collections of notes)
 //!
 //! # Performance Recommendations
-//! **Prefer [`ObFileOnDisk`]) over [`ObFileInMemory`](crate::prelude::ObFileInMemory) for large vaults** - it uses significantly less memory
+//! **Prefer [`ObFileOnDisk`] over [`ObFileInMemory`] for large vaults** - it uses significantly less memory
 //! by reading files on-demand rather than loading everything into memory upfront.
 //!
 //! # Examples
@@ -39,7 +39,7 @@
 //!     priority: u8,
 //! }
 //!
-//! let vault: Vault<NoteProperties> = Vault::open("/path/to/vault").unwrap();
+//! let vault: VaultOnDisk<NoteProperties> = Vault::open("/path/to/vault").unwrap();
 //!
 //! // Access custom properties
 //! for file in &vault.files {
@@ -74,7 +74,7 @@
 //! }
 //! ```
 //!
-//! ## Use custom [`ObFile`] (example for [`ObFileInMemory`](crate::prelude::ObFileInMemory))
+//! ## Use custom [`ObFile`] (example for [`ObFileInMemory`])
 //! ```no_run
 //! use obsidian_parser::prelude::*;
 //! use serde::Deserialize;
@@ -86,7 +86,7 @@
 //!     priority: u8,
 //! }
 //!
-//! let vault: Vault<NoteProperties, ObFileInMemory<NoteProperties>> = Vault::open("/path/to/vault").unwrap();
+//! let vault: VaultInMemory<NoteProperties> = Vault::open("/path/to/vault").unwrap();
 //! ```
 
 pub mod vault_open;
@@ -101,7 +101,9 @@ pub(crate) mod vault_get_files;
 
 use crate::obfile::DefaultProperties;
 use crate::obfile::ObFile;
+use crate::prelude::ObFileInMemory;
 use crate::{error::Error, prelude::ObFileOnDisk};
+use serde::Serialize;
 use serde::de::DeserializeOwned;
 use std::collections::HashSet;
 use std::{marker::PhantomData, path::PathBuf};
@@ -125,6 +127,9 @@ where
     /// Path to vault root directory
     pub path: PathBuf,
 }
+
+pub type VaultOnDisk<T: DeserializeOwned + Clone> = Vault<ObFileOnDisk<T>>;
+pub type VaultInMemory<T: Clone> = Vault<ObFileInMemory<T>>;
 
 impl<F> Vault<F>
 where

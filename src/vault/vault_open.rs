@@ -1,7 +1,9 @@
 //! Module for open impl [`Vault`]
 
 use super::{DefaultProperties, Error, ObFile, Vault};
-use crate::{prelude::ObFileOnDisk, vault::vault_get_files::get_files_for_parse};
+use crate::{
+    obfile::ObFileRead, prelude::ObFileOnDisk, vault::vault_get_files::get_files_for_parse,
+};
 use serde::de::DeserializeOwned;
 use std::{
     marker::PhantomData,
@@ -23,7 +25,8 @@ fn check_vault(path: impl AsRef<Path>) -> Result<(), Error> {
 
 impl<F> Vault<F>
 where
-    F: ObFile + Send,
+    F::Properties: DeserializeOwned,
+    F: ObFileRead + Send,
 {
     /// Parsing files by rayon with ignore
     #[cfg(feature = "rayon")]

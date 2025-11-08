@@ -63,16 +63,14 @@ fn vault_open_benchmark(c: &mut Criterion) {
 
     c.bench_function("vault_open_on_disk", |b| {
         b.iter(|| {
-            let vault: Vault<ObFileOnDisk<NoteProperties>> =
-                Vault::open_ignore(black_box(path)).unwrap();
+            let vault: VaultOnDisk<NoteProperties> = Vault::open_ignore(black_box(path)).unwrap();
             black_box(vault);
         })
     });
 
     c.bench_function("vault_open_in_memory", |b| {
         b.iter(|| {
-            let vault: Vault<ObFileInMemory<NoteProperties>> =
-                Vault::open_ignore(black_box(path)).unwrap();
+            let vault: VaultInMemory<NoteProperties> = Vault::open_ignore(black_box(path)).unwrap();
             black_box(vault);
         })
     });
