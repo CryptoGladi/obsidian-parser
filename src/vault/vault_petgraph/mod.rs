@@ -66,7 +66,7 @@
 //! }
 //!
 //! // Load vault with custom properties
-//! let vault: Vault<NoteProperties> = Vault::open("/path/to/vault").unwrap();
+//! let vault: VaultInMemory<NoteProperties> = Vault::open("/path/to/vault").unwrap();
 //!
 //! // Build graph filtering by property
 //! let mut graph = vault.get_digraph();
@@ -84,13 +84,11 @@ use super::Vault;
 use crate::obfile::ObFile;
 use graph_builder::GraphBuilder;
 use petgraph::graph::{DiGraph, UnGraph};
-use serde::de::DeserializeOwned;
 use std::marker::{Send, Sync};
 
-impl<T, F> Vault<T, F>
+impl<F> Vault<F>
 where
-    T: DeserializeOwned + Clone,
-    F: ObFile<T> + Send + Sync,
+    F: ObFile + Send + Sync,
 {
     /// Builds directed graph representing note relationships
     ///

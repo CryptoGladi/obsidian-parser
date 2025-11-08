@@ -3,7 +3,7 @@
 //! Provides functionality for working with entire Obsidian vaults (collections of notes)
 //!
 //! # Performance Recommendations
-//! **Prefer [`ObFileOnDisk`]) over [`ObFileInMemory`](crate::prelude::ObFileInMemory) for large vaults** - it uses significantly less memory
+//! **Prefer [`ObFileOnDisk`] over [`ObFileInMemory`] for large vaults** - it uses significantly less memory
 //! by reading files on-demand rather than loading everything into memory upfront.
 //!
 //! # Examples
@@ -39,7 +39,7 @@
 //!     priority: u8,
 //! }
 //!
-//! let vault: Vault<NoteProperties> = Vault::open("/path/to/vault").unwrap();
+//! let vault: VaultOnDisk<NoteProperties> = Vault::open("/path/to/vault").unwrap();
 //!
 //! // Access custom properties
 //! for file in &vault.files {
@@ -74,7 +74,7 @@
 //! }
 //! ```
 //!
-//! ## Use custom [`ObFile`] (example for [`ObFileInMemory`](crate::prelude::ObFileInMemory))
+//! ## Use custom [`ObFile`] (example for [`ObFileInMemory`])
 //! ```no_run
 //! use obsidian_parser::prelude::*;
 //! use serde::Deserialize;
@@ -86,7 +86,7 @@
 //!     priority: u8,
 //! }
 //!
-//! let vault: Vault<NoteProperties, ObFileInMemory<NoteProperties>> = Vault::open("/path/to/vault").unwrap();
+//! let vault: VaultInMemory<NoteProperties> = Vault::open("/path/to/vault").unwrap();
 //! ```
 
 pub mod vault_open;
@@ -101,10 +101,10 @@ pub(crate) mod vault_get_files;
 
 use crate::obfile::DefaultProperties;
 use crate::obfile::ObFile;
+use crate::prelude::ObFileInMemory;
 use crate::{error::Error, prelude::ObFileOnDisk};
-use serde::de::DeserializeOwned;
 use std::collections::HashSet;
-use std::{marker::PhantomData, path::PathBuf};
+use std::path::PathBuf;
 
 /// Represents an entire Obsidian vault
 ///
@@ -115,25 +115,26 @@ use std::{marker::PhantomData, path::PathBuf};
 /// - `T`: Type for frontmatter properties
 /// - `F`: File representation type
 #[derive(Debug, Default, PartialEq, Eq, Clone)]
-pub struct Vault<T, F = ObFileOnDisk<T>>
+pub struct Vault<F = ObFileOnDisk<DefaultProperties>>
 where
-    T: DeserializeOwned + Clone,
-    F: ObFile<T> + Send,
+    F: ObFile + Send,
 {
     /// All files in the vault
     pub files: Vec<F>,
 
     /// Path to vault root directory
     pub path: PathBuf,
-
-    /// Phantom data
-    pub phantom: PhantomData<T>,
 }
 
-impl<T, F> Vault<T, F>
+/// Vault, but used [`ObFileOnDisk`]
+pub type VaultOnDisk<T> = Vault<ObFileOnDisk<T>>;
+
+/// Vault, but used [`ObFileInMemory`]
+pub type VaultInMemory<T> = Vault<ObFileInMemory<T>>;
+
+impl<F> Vault<F>
 where
-    T: DeserializeOwned + Clone,
-    F: ObFile<T> + Send,
+    F: ObFile + Send,
 {
     /// Returns duplicated note name
     ///

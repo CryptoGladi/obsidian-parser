@@ -1,12 +1,11 @@
 //! Module for open impl [`Vault`]
 
-use super::{DefaultProperties, Error, ObFile, Vault};
-use crate::{prelude::ObFileOnDisk, vault::vault_get_files::get_files_for_parse};
-use serde::de::DeserializeOwned;
-use std::{
-    marker::PhantomData,
-    path::{Path, PathBuf},
+use super::{DefaultProperties, Error, Vault};
+use crate::{
+    obfile::ObFileRead, prelude::ObFileOnDisk, vault::vault_get_files::get_files_for_parse,
 };
+use serde::de::DeserializeOwned;
+use std::path::{Path, PathBuf};
 
 fn check_vault(path: impl AsRef<Path>) -> Result<(), Error> {
     let path_buf = path.as_ref().to_path_buf();
@@ -21,10 +20,10 @@ fn check_vault(path: impl AsRef<Path>) -> Result<(), Error> {
     Ok(())
 }
 
-impl<T, F> Vault<T, F>
+impl<F> Vault<F>
 where
-    T: DeserializeOwned + Clone,
-    F: ObFile<T> + Send,
+    F::Properties: DeserializeOwned,
+    F: ObFileRead + Send,
 {
     /// Parsing files by rayon with ignore
     #[cfg(feature = "rayon")]
@@ -138,7 +137,6 @@ where
         Ok(Self {
             files,
             path: path_buf,
-            phantom: PhantomData,
         })
     }
 
@@ -188,13 +186,12 @@ where
         Ok(Self {
             files,
             path: path_buf,
-            phantom: PhantomData,
         })
     }
 }
 
 #[allow(clippy::implicit_hasher)]
-impl Vault<DefaultProperties, ObFileOnDisk> {
+impl Vault<ObFileOnDisk<DefaultProperties>> {
     /// Opens vault using default properties ([`HashMap`](std::collections::HashMap)) and [`ObFileOnDisk`] storage
     ///
     /// Recommended for most use cases due to its memory efficiency
@@ -238,7 +235,7 @@ mod tests {
     use super::*;
     use crate::prelude::ObFileInMemory;
     use crate::{test_utils::init_test_logger, vault::vault_test::create_test_vault};
-    use serde::Deserialize;
+    use serde::{Deserialize, Serialize};
     use std::fs::File;
     use std::io::Write;
 
@@ -275,7 +272,7 @@ mod tests {
         assert_eq!(vault.path, vault_path.path());
     }
 
-    #[derive(Clone, Deserialize)]
+    #[derive(Clone, Deserialize, Serialize)]
     pub struct TestProperties {
         #[allow(dead_code)]
         not_correct: String,
@@ -289,10 +286,9 @@ mod tests {
         let mut file = File::create(vault_path.path().join("not_file.md")).unwrap();
         file.write_all(b"---\nnot: \n---\ndata").unwrap(); // Not UTF-8
 
-        let error_open =
-            Vault::<TestProperties, ObFileInMemory<TestProperties>>::open(vault_path.path())
-                .err()
-                .unwrap();
+        let error_open = Vault::<ObFileInMemory<TestProperties>>::open(vault_path.path())
+            .err()
+            .unwrap();
 
         assert!(matches!(error_open, Error::Yaml(_)));
     }
@@ -306,8 +302,7 @@ mod tests {
         file.write_all(b"---\nnot: \n---\ndata").unwrap(); // Not UTF-8
 
         let error_open =
-            Vault::<TestProperties, ObFileInMemory<TestProperties>>::open_ignore(vault_path.path())
-                .err();
+            Vault::<ObFileInMemory<TestProperties>>::open_ignore(vault_path.path()).err();
 
         assert!(matches!(error_open, None));
     }

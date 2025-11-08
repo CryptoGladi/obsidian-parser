@@ -1,12 +1,13 @@
 //! In-memory representation of an Obsidian note file
 
-use crate::error::Error;
-use crate::obfile::{DefaultProperties, ObFile, ObFileFlush, ResultParse, parse_obfile};
-use serde::Serialize;
+use std::{
+    borrow::Cow,
+    path::{Path, PathBuf},
+};
+
+use super::{DefaultProperties, ObFile, ObFileRead, parse_obfile};
+use crate::{error::Error, obfile::ResultParse};
 use serde::de::DeserializeOwned;
-use std::borrow::Cow;
-use std::path::Path;
-use std::path::PathBuf;
 
 /// In-memory representation of an Obsidian note file
 ///
@@ -26,7 +27,7 @@ use std::path::PathBuf;
 #[derive(Debug, Default, PartialEq, Eq, Clone)]
 pub struct ObFileInMemory<T = DefaultProperties>
 where
-    T: DeserializeOwned + Clone,
+    T: Clone,
 {
     /// Markdown content body (without frontmatter)
     content: String,
@@ -38,7 +39,17 @@ where
     properties: Option<T>,
 }
 
-impl<T: DeserializeOwned + Clone> ObFile<T> for ObFileInMemory<T> {
+impl<T> ObFile for ObFileInMemory<T>
+where
+    T: Clone,
+{
+    type Properties = T;
+
+    #[inline]
+    fn properties(&self) -> Result<Option<Cow<'_, T>>, Error> {
+        Ok(self.properties.as_ref().map(|p| Cow::Borrowed(p)))
+    }
+
     #[inline]
     fn content(&self) -> Result<Cow<'_, str>, Error> {
         Ok(Cow::Borrowed(&self.content))
@@ -48,12 +59,12 @@ impl<T: DeserializeOwned + Clone> ObFile<T> for ObFileInMemory<T> {
     fn path(&self) -> Option<Cow<'_, Path>> {
         self.path.as_ref().map(|p| Cow::Borrowed(p.as_path()))
     }
+}
 
-    #[inline]
-    fn properties(&self) -> Result<Option<Cow<'_, T>>, Error> {
-        Ok(self.properties.as_ref().map(|p| Cow::Borrowed(p)))
-    }
-
+impl<T> ObFileRead for ObFileInMemory<T>
+where
+    T: DeserializeOwned + Clone,
+{
     /// Parses a string into an in-memory Obsidian note representation
     ///
     /// # Arguments
@@ -90,11 +101,12 @@ impl<T: DeserializeOwned + Clone> ObFile<T> for ObFileInMemory<T> {
     /// assert_eq!(properties.title, "Example");
     /// assert_eq!(file.content().unwrap(), "Content");
     /// ```
-    fn from_string<P: AsRef<std::path::Path>>(
-        raw_text: &str,
-        path: Option<P>,
+    fn from_string(
+        raw_text: impl AsRef<str>,
+        path: Option<impl AsRef<Path>>,
     ) -> Result<Self, Error> {
         let path_buf = path.map(|x| x.as_ref().to_path_buf());
+        let raw_text = raw_text.as_ref();
 
         #[cfg(feature = "logging")]
         log::trace!(
@@ -132,8 +144,6 @@ impl<T: DeserializeOwned + Clone> ObFile<T> for ObFileInMemory<T> {
         }
     }
 }
-
-impl<T: DeserializeOwned + Serialize + Clone> ObFileFlush<T> for ObFileInMemory<T> {}
 
 #[cfg(test)]
 mod tests {

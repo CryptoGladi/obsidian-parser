@@ -1,10 +1,10 @@
 //! On-disk representation of an Obsidian note file
 
 use crate::error::Error;
-use crate::obfile::{DefaultProperties, ObFile, ObFileFlush, ResultParse, parse_obfile};
-use serde::Serialize;
+use crate::obfile::{DefaultProperties, ObFile, ObFileRead, ResultParse, parse_obfile};
 use serde::de::DeserializeOwned;
 use std::borrow::Cow;
+use std::io::Read;
 use std::marker::PhantomData;
 use std::path::Path;
 use std::path::PathBuf;
@@ -37,7 +37,7 @@ use std::path::PathBuf;
 #[derive(Debug, Default, PartialEq, Eq, Clone)]
 pub struct ObFileOnDisk<T = DefaultProperties>
 where
-    T: DeserializeOwned + Clone,
+    T: Clone + DeserializeOwned,
 {
     /// Absolute path to the source Markdown file
     path: PathBuf,
@@ -45,7 +45,45 @@ where
     phantom: PhantomData<T>,
 }
 
-impl<T: DeserializeOwned + Clone> ObFile<T> for ObFileOnDisk<T> {
+impl<T> ObFile for ObFileOnDisk<T>
+where
+    T: DeserializeOwned + Clone,
+{
+    type Properties = T;
+
+    /// Parses YAML frontmatter directly from disk
+    ///
+    /// # Errors
+    /// - If properties can't be deserialized
+    /// - If file doesn't exist
+    /// - On filesystem errors
+    fn properties(&self) -> Result<Option<Cow<'_, T>>, Error> {
+        let data = std::fs::read(&self.path)?;
+
+        // SAFETY: Notes files in Obsidian (`*.md`) ensure that the file is encoded in UTF-8
+        let raw_text = unsafe { String::from_utf8_unchecked(data) };
+
+        let result = match parse_obfile(&raw_text)? {
+            ResultParse::WithProperties {
+                content: _,
+                properties,
+            } => {
+                #[cfg(feature = "logging")]
+                log::trace!("Frontmatter detected, parsing properties");
+
+                Some(Cow::Owned(serde_yml::from_str(properties)?))
+            }
+            ResultParse::WithoutProperties => {
+                #[cfg(feature = "logging")]
+                log::trace!("No frontmatter found, storing raw content");
+
+                None
+            }
+        };
+
+        Ok(result)
+    }
+
     /// Returns the note's content body (without frontmatter)
     ///
     /// # Errors
@@ -85,58 +123,24 @@ impl<T: DeserializeOwned + Clone> ObFile<T> for ObFileOnDisk<T> {
         Ok(Cow::Owned(result))
     }
 
-    /// Parses YAML frontmatter directly from disk
-    ///
-    /// # Errors
-    /// - If properties can't be deserialized
-    /// - If file doesn't exist
-    /// - On filesystem errors
-    fn properties(&self) -> Result<Option<Cow<'_, T>>, Error> {
-        let data = std::fs::read(&self.path)?;
-
-        // SAFETY: Notes files in Obsidian (`*.md`) ensure that the file is encoded in UTF-8
-        let raw_text = unsafe { String::from_utf8_unchecked(data) };
-
-        let result = match parse_obfile(&raw_text)? {
-            ResultParse::WithProperties {
-                content: _,
-                properties,
-            } => {
-                #[cfg(feature = "logging")]
-                log::trace!("Frontmatter detected, parsing properties");
-
-                Some(Cow::Owned(serde_yml::from_str(properties)?))
-            }
-            ResultParse::WithoutProperties => {
-                #[cfg(feature = "logging")]
-                log::trace!("No frontmatter found, storing raw content");
-
-                None
-            }
-        };
-
-        Ok(result)
-    }
-
     #[inline]
     fn path(&self) -> Option<Cow<'_, Path>> {
         Some(Cow::Borrowed(&self.path))
     }
+}
 
-    /// Creates instance from text (requires path!)
-    ///
-    /// Dont use this function. Use `from_file`
-    fn from_string<P: AsRef<std::path::Path>>(
-        _raw_text: &str,
-        path: Option<P>,
-    ) -> Result<Self, Error> {
-        let path_buf = path.expect("Path is required").as_ref().to_path_buf();
-
-        Self::from_file(path_buf)
+impl<T> ObFileRead for ObFileOnDisk<T>
+where
+    T: DeserializeOwned + Clone,
+{
+    /// Creates instance from [`std::io::Read`]
+    #[inline]
+    fn from_read(_read: &mut impl Read, path: Option<impl AsRef<Path>>) -> Result<Self, Error> {
+        Self::from_string("", path)
     }
 
     /// Creates instance from path
-    fn from_file<P: AsRef<std::path::Path>>(path: P) -> Result<Self, Error> {
+    fn from_file(path: impl AsRef<Path>) -> Result<Self, Error> {
         let path_buf = path.as_ref().to_path_buf();
 
         if !path_buf.is_file() {
@@ -148,9 +152,20 @@ impl<T: DeserializeOwned + Clone> ObFile<T> for ObFileOnDisk<T> {
             phantom: PhantomData,
         })
     }
-}
 
-impl<T: DeserializeOwned + Serialize + Clone> ObFileFlush<T> for ObFileOnDisk<T> {}
+    /// Creates instance from text (requires path!)
+    ///
+    /// Dont use this function. Use `from_file`
+    #[inline]
+    fn from_string(
+        _raw_text: impl AsRef<str>,
+        path: Option<impl AsRef<Path>>,
+    ) -> Result<Self, Error> {
+        let path_buf = path.expect("Path is required").as_ref().to_path_buf();
+
+        Self::from_file(path_buf)
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -160,6 +175,7 @@ mod tests {
         from_file, from_file_with_unicode, impl_all_tests_flush, impl_test_for_obfile,
     };
     use crate::test_utils::init_test_logger;
+    use std::fs::File;
     use std::io::Write;
     use tempfile::NamedTempFile;
 
@@ -221,5 +237,39 @@ mod tests {
 
         assert_eq!(file.content().unwrap(), "DATA");
         assert_eq!(properties["time"], "now");
+    }
+
+    #[test]
+    fn from_read() {
+        init_test_logger();
+        let test_data = "---\ntime: now\n---\nDATA";
+        let mut test_file = NamedTempFile::new().unwrap();
+        test_file.write_all(test_data.as_bytes()).unwrap();
+
+        let file = ObFileOnDisk::from_read_default(
+            &mut File::open(test_file.path()).unwrap(),
+            Some(test_file.path()),
+        )
+        .unwrap();
+
+        let properties = file.properties().unwrap().unwrap();
+
+        assert_eq!(file.content().unwrap(), "DATA");
+        assert_eq!(properties["time"], "now");
+    }
+
+    #[test]
+    #[should_panic]
+    fn from_read_but_without_path() {
+        init_test_logger();
+        let test_data = "---\ntime: now\n---\nDATA";
+        let mut test_file = NamedTempFile::new().unwrap();
+        test_file.write_all(test_data.as_bytes()).unwrap();
+
+        let _file = ObFileOnDisk::from_read_default(
+            &mut File::open(test_file.path()).unwrap(),
+            None::<&str>,
+        )
+        .unwrap();
     }
 }

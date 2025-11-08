@@ -1,11 +1,17 @@
 //! Represents an Obsidian note file with frontmatter properties and content
 
+pub mod obfile_default;
 pub mod obfile_in_memory;
 pub mod obfile_on_disk;
+pub mod obfile_read;
+pub mod obfile_write;
 
 use crate::error::Error;
-use serde::{Serialize, de::DeserializeOwned};
-use std::{borrow::Cow, collections::HashMap, fs::OpenOptions, io::Write, path::Path};
+use std::{borrow::Cow, collections::HashMap, fs::OpenOptions, path::Path};
+
+pub use obfile_default::ObFileDefault;
+pub use obfile_read::ObFileRead;
+pub use obfile_write::ObFileWrite;
 
 pub(crate) type DefaultProperties = HashMap<String, serde_yml::Value>;
 
@@ -13,9 +19,6 @@ pub(crate) type DefaultProperties = HashMap<String, serde_yml::Value>;
 ///
 /// This trait provides a standardized interface for working with Obsidian markdown files,
 /// handling frontmatter parsing, content extraction, and file operations.
-///
-/// # Type Parameters
-/// - `T`: Frontmatter properties type
 ///
 /// # Example
 /// ```no_run
@@ -28,17 +31,26 @@ pub(crate) type DefaultProperties = HashMap<String, serde_yml::Value>;
 ///     created: String,
 /// }
 ///
-/// let note: ObFileInMemory<NoteProperties> = ObFile::from_file("note.md").unwrap();
+/// let note: ObFileInMemory<NoteProperties> = ObFileRead::from_file("note.md").unwrap();
 /// let properties = note.properties().unwrap().unwrap();
 /// println!("Note topic: {}", properties.topic);
 /// ```
 ///
 /// # Other
-/// To write and modify [`ObFile`] to a file, use the [`ObFileFlush`] trait.
-pub trait ObFile<T = DefaultProperties>: Sized
-where
-    T: DeserializeOwned + Clone,
-{
+/// * To open and read [`ObFile`] to a file, use the [`ObFileRead`] trait.
+/// * To write and modify [`ObFile`] to a file, use the [`ObFileWrite`] trait.
+pub trait ObFile: Sized {
+    /// Frontmatter properties type
+    type Properties: Clone;
+
+    /// Returns the parsed properties of frontmatter
+    ///
+    /// Returns [`None`] if the note has no properties
+    ///
+    /// # Errors
+    /// Usually errors are related to [`Error::Io`]
+    fn properties(&self) -> Result<Option<Cow<'_, Self::Properties>>, Error>;
+
     /// Returns the main content body of the note (excluding frontmatter)
     ///
     /// # Implementation Notes
@@ -54,14 +66,6 @@ where
     /// Returns [`None`] for in-memory notes without physical storage
     fn path(&self) -> Option<Cow<'_, Path>>;
 
-    /// Returns the parsed properties of frontmatter
-    ///
-    /// Returns [`None`] if the note has no properties
-    ///
-    /// # Errors
-    /// Usually errors are related to [`Error::Io`]
-    fn properties(&self) -> Result<Option<Cow<'_, T>>, Error>;
-
     /// Get note name
     fn note_name(&self) -> Option<String> {
         self.path().as_ref().map(|path| {
@@ -70,152 +74,6 @@ where
                 .to_string_lossy()
                 .to_string()
         })
-    }
-
-    /// Parses an Obsidian note from a string
-    ///
-    /// # Arguments
-    /// - `raw_text`: Raw markdown content with optional YAML frontmatter
-    /// - `path`: Optional source path for reference
-    ///
-    /// # Errors
-    /// - [`Error::InvalidFormat`] for malformed frontmatter
-    /// - [`Error::Yaml`] for invalid YAML syntax
-    fn from_string<P: AsRef<Path>>(raw_text: &str, path: Option<P>) -> Result<Self, Error>;
-
-    /// Parses an Obsidian note from a file
-    ///
-    /// # Arguments
-    /// - `path`: Filesystem path to markdown file
-    ///
-    /// # Errors
-    /// - [`Error::Io`] for filesystem errors
-    fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
-        let path_buf = path.as_ref().to_path_buf();
-
-        #[cfg(feature = "logging")]
-        log::trace!("Parse obsidian file from file: {}", path_buf.display());
-
-        let data = std::fs::read(path)?;
-
-        // SAFETY: Notes files in Obsidian (`*.md`) ensure that the file is encoded in UTF-8
-        let text = unsafe { String::from_utf8_unchecked(data) };
-
-        Self::from_string(&text, Some(path_buf))
-    }
-}
-
-/// Default implementation using [`HashMap`] for properties
-///
-/// Automatically implemented for all `ObFile<HashMap<..>>` types.
-/// Provides identical interface with explicitly named methods.
-pub trait ObFileDefault: ObFile<DefaultProperties> {
-    /// Same as [`ObFile::from_string`] with default properties type
-    ///
-    /// # Errors
-    /// - [`Error::InvalidFormat`] for malformed frontmatter
-    /// - [`Error::Yaml`] for invalid YAML syntax
-    fn from_string_default<P: AsRef<Path>>(text: &str, path: Option<P>) -> Result<Self, Error>;
-
-    /// Same as [`ObFile::from_file`] with default properties type
-    ///
-    /// # Errors
-    /// - [`Error::Io`] for filesystem errors
-    fn from_file_default<P: AsRef<Path>>(path: P) -> Result<Self, Error>;
-}
-
-/// Represents an Obsidian note file with frontmatter properties and content
-/// for flush to file
-///
-/// To use this trait, `T` must implement [`serde::Serialize`]
-pub trait ObFileFlush<T = DefaultProperties>: ObFile<T>
-where
-    T: DeserializeOwned + Serialize + Clone,
-{
-    /// Flush only `content`
-    ///
-    /// Ignore if path is `None`
-    ///
-    /// # Errors
-    /// - [`Error::Io`] for filesystem errors
-    fn flush_content(&self, open_option: &OpenOptions) -> Result<(), Error> {
-        if let Some(path) = self.path() {
-            let text = std::fs::read_to_string(&path)?;
-            let parsed = parse_obfile(&text)?;
-
-            let mut file = open_option.open(path)?;
-
-            match parsed {
-                ResultParse::WithProperties {
-                    content: _,
-                    properties,
-                } => file.write_all(
-                    format!("---\n{}\n---\n{}", properties, self.content()?).as_bytes(),
-                )?,
-                ResultParse::WithoutProperties => file.write_all(self.content()?.as_bytes())?,
-            }
-        }
-
-        Ok(())
-    }
-
-    /// Flush only `content`
-    ///
-    /// Ignore if path is `None`
-    /// # Errors
-    /// - [`Error::Io`] for filesystem errors
-    fn flush_properties(&self, open_option: &OpenOptions) -> Result<(), Error> {
-        if let Some(path) = self.path() {
-            let text = std::fs::read_to_string(&path)?;
-            let parsed = parse_obfile(&text)?;
-
-            let mut file = open_option.open(path)?;
-
-            match parsed {
-                ResultParse::WithProperties {
-                    content,
-                    properties: _,
-                } => match self.properties()? {
-                    Some(properties) => file.write_all(
-                        format!(
-                            "---\n{}\n---\n{}",
-                            serde_yml::to_string(&properties)?,
-                            content
-                        )
-                        .as_bytes(),
-                    )?,
-                    None => file.write_all(self.content()?.as_bytes())?,
-                },
-                ResultParse::WithoutProperties => file.write_all(self.content()?.as_bytes())?,
-            }
-        }
-
-        Ok(())
-    }
-
-    /// Flush [`ObFile`] to [`self.path()`]
-    ///
-    /// Ignore if path is `None`
-    /// # Errors
-    /// - [`Error::Io`] for filesystem errors
-    fn flush(&self, open_option: &OpenOptions) -> Result<(), Error> {
-        if let Some(path) = self.path() {
-            let mut file = open_option.open(path)?;
-
-            match self.properties()? {
-                Some(properties) => file.write_all(
-                    format!(
-                        "---\n{}\n---\n{}",
-                        serde_yml::to_string(&properties)?,
-                        self.content()?
-                    )
-                    .as_bytes(),
-                )?,
-                None => file.write_all(self.content()?.as_bytes())?,
-            }
-        }
-
-        Ok(())
     }
 }
 
@@ -251,19 +109,6 @@ pub fn parse_links(text: &str) -> impl Iterator<Item = &str> {
 
         Some(note_name)
     })
-}
-
-impl<T> ObFileDefault for T
-where
-    T: ObFile<DefaultProperties>,
-{
-    fn from_string_default<P: AsRef<Path>>(text: &str, path: Option<P>) -> Result<Self, Error> {
-        Self::from_string(text, path)
-    }
-
-    fn from_file_default<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
-        Self::from_file(path)
-    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -405,7 +250,10 @@ Test data\n\
 ---\n\
 Two test data";
 
-    pub(crate) fn from_string<T: ObFile>() -> Result<(), Error> {
+    pub(crate) fn from_string<T>() -> Result<(), Error>
+    where
+        T: ObFileRead<Properties = DefaultProperties>,
+    {
         init_test_logger();
         let file = T::from_string(TEST_DATA, None::<&str>)?;
         let properties = file.properties().unwrap().unwrap();
@@ -416,7 +264,10 @@ Two test data";
         Ok(())
     }
 
-    pub(crate) fn from_string_note_name<T: ObFile>() -> Result<(), Error> {
+    pub(crate) fn from_string_note_name<T>() -> Result<(), Error>
+    where
+        T: ObFileRead<Properties = DefaultProperties>,
+    {
         init_test_logger();
         let file1 = T::from_string(TEST_DATA, None::<&str>)?;
         let file2 = T::from_string(TEST_DATA, Some("Super node.md"))?;
@@ -426,7 +277,10 @@ Two test data";
         Ok(())
     }
 
-    pub(crate) fn from_string_without_properties<T: ObFile>() -> Result<(), Error> {
+    pub(crate) fn from_string_without_properties<T>() -> Result<(), Error>
+    where
+        T: ObFileRead<Properties = DefaultProperties>,
+    {
         init_test_logger();
         let test_data = "TEST_DATA";
         let file = T::from_string(test_data, None::<&str>)?;
@@ -436,7 +290,10 @@ Two test data";
         Ok(())
     }
 
-    pub(crate) fn from_string_with_invalid_yaml<T: ObFile>() -> Result<(), Error> {
+    pub(crate) fn from_string_with_invalid_yaml<T>() -> Result<(), Error>
+    where
+        T: ObFileRead<Properties = DefaultProperties>,
+    {
         init_test_logger();
         let broken_data = "---\n\
     asdfv:--fs\n\
@@ -451,7 +308,10 @@ Two test data";
         Ok(())
     }
 
-    pub(crate) fn from_string_invalid_format<T: ObFile>() -> Result<(), Error> {
+    pub(crate) fn from_string_invalid_format<T>() -> Result<(), Error>
+    where
+        T: ObFileRead<Properties = DefaultProperties>,
+    {
         init_test_logger();
         let broken_data = "---\n";
 
@@ -462,7 +322,10 @@ Two test data";
         Ok(())
     }
 
-    pub(crate) fn from_string_with_unicode<T: ObFile>() -> Result<(), Error> {
+    pub(crate) fn from_string_with_unicode<T>() -> Result<(), Error>
+    where
+        T: ObFileRead<Properties = DefaultProperties>,
+    {
         init_test_logger();
         let data = "---\ndata: 💩\n---\nSuper data 💩💩💩";
         let file = T::from_string(data, None::<&str>)?;
@@ -473,7 +336,10 @@ Two test data";
         Ok(())
     }
 
-    pub(crate) fn from_string_space_with_properties<T: ObFile>() -> Result<(), Error> {
+    pub(crate) fn from_string_space_with_properties<T>() -> Result<(), Error>
+    where
+        T: ObFileRead<Properties = DefaultProperties>,
+    {
         init_test_logger();
         let data = "  ---\ntest: test-data\n---\n";
         let file = T::from_string(data, None::<&str>)?;
@@ -484,7 +350,10 @@ Two test data";
         Ok(())
     }
 
-    pub(crate) fn from_file<T: ObFile>() -> Result<(), Error> {
+    pub(crate) fn from_file<T>() -> Result<(), Error>
+    where
+        T: ObFileRead<Properties = DefaultProperties>,
+    {
         init_test_logger();
         let mut temp_file = NamedTempFile::new().unwrap();
         temp_file.write_all(b"TEST_DATA").unwrap();
@@ -496,7 +365,10 @@ Two test data";
         Ok(())
     }
 
-    pub(crate) fn from_file_note_name<T: ObFile>() -> Result<(), Error> {
+    pub(crate) fn from_file_note_name<T>() -> Result<(), Error>
+    where
+        T: ObFileRead<Properties = DefaultProperties>,
+    {
         init_test_logger();
         let mut temp_file = NamedTempFile::new().unwrap();
         temp_file.write_all(b"TEST_DATA").unwrap();
@@ -514,7 +386,10 @@ Two test data";
         Ok(())
     }
 
-    pub(crate) fn from_file_without_properties<T: ObFile>() -> Result<(), Error> {
+    pub(crate) fn from_file_without_properties<T>() -> Result<(), Error>
+    where
+        T: ObFileRead<Properties = DefaultProperties>,
+    {
         init_test_logger();
         let test_data = "TEST_DATA";
         let mut test_file = NamedTempFile::new().unwrap();
@@ -527,7 +402,10 @@ Two test data";
         Ok(())
     }
 
-    pub(crate) fn from_file_with_invalid_yaml<T: ObFile>() -> Result<(), Error> {
+    pub(crate) fn from_file_with_invalid_yaml<T>() -> Result<(), Error>
+    where
+        T: ObFileRead<Properties = DefaultProperties>,
+    {
         init_test_logger();
         let broken_data = "---\n\
     asdfv:--fs\n\
@@ -545,7 +423,10 @@ Two test data";
         Ok(())
     }
 
-    pub(crate) fn from_file_invalid_format<T: ObFile>() -> Result<(), Error> {
+    pub(crate) fn from_file_invalid_format<T>() -> Result<(), Error>
+    where
+        T: ObFileRead<Properties = DefaultProperties>,
+    {
         init_test_logger();
         let broken_data = "---\n";
         let mut test_file = NamedTempFile::new().unwrap();
@@ -558,7 +439,10 @@ Two test data";
         Ok(())
     }
 
-    pub(crate) fn from_file_with_unicode<T: ObFile>() -> Result<(), Error> {
+    pub(crate) fn from_file_with_unicode<T>() -> Result<(), Error>
+    where
+        T: ObFileRead<Properties = DefaultProperties>,
+    {
         init_test_logger();
         let data = "---\ndata: 💩\n---\nSuper data 💩💩💩";
         let mut test_file = NamedTempFile::new().unwrap();
@@ -572,7 +456,10 @@ Two test data";
         Ok(())
     }
 
-    pub(crate) fn from_file_space_with_properties<T: ObFile>() -> Result<(), Error> {
+    pub(crate) fn from_file_space_with_properties<T>() -> Result<(), Error>
+    where
+        T: ObFileRead<Properties = DefaultProperties>,
+    {
         init_test_logger();
         let data = "  ---\ntest: test-data\n---\n";
         let mut test_file = NamedTempFile::new().unwrap();
@@ -585,7 +472,10 @@ Two test data";
         Ok(())
     }
 
-    pub(crate) fn flush_properties<T: ObFileFlush>() -> Result<(), Error> {
+    pub(crate) fn flush_properties<T>() -> Result<(), Error>
+    where
+        T: ObFileWrite<Properties = DefaultProperties> + ObFileRead<Properties = DefaultProperties>,
+    {
         let mut test_file = NamedTempFile::new().unwrap();
         test_file.write_all(TEST_DATA.as_bytes()).unwrap();
 
@@ -595,6 +485,7 @@ Two test data";
         drop(file);
 
         let file = T::from_file_default(test_file.path())?;
+
         let properties = file.properties()?.unwrap();
         assert_eq!(properties["topic"], "life");
         assert_eq!(properties["created"], "2025-03-16");
@@ -603,7 +494,10 @@ Two test data";
         Ok(())
     }
 
-    pub(crate) fn flush_content<T: ObFileFlush>() -> Result<(), Error> {
+    pub(crate) fn flush_content<T>() -> Result<(), Error>
+    where
+        T: ObFileWrite<Properties = DefaultProperties> + ObFileRead<Properties = DefaultProperties>,
+    {
         let mut test_file = NamedTempFile::new().unwrap();
         test_file.write_all(TEST_DATA.as_bytes()).unwrap();
 
@@ -621,7 +515,10 @@ Two test data";
         Ok(())
     }
 
-    pub(crate) fn flush<T: ObFileFlush>() -> Result<(), Error> {
+    pub(crate) fn flush<T>() -> Result<(), Error>
+    where
+        T: ObFileRead<Properties = DefaultProperties> + ObFileWrite<Properties = DefaultProperties>,
+    {
         let mut test_file = NamedTempFile::new().unwrap();
         test_file.write_all(TEST_DATA.as_bytes()).unwrap();
 
