@@ -1,11 +1,10 @@
 //! On-disk representation of an Obsidian note file
 
 use crate::error::Error;
-use crate::obfile::{
-    DefaultProperties, ObFile, ObFileRead, ObFileWrite, ResultParse, parse_obfile,
-};
+use crate::obfile::{DefaultProperties, ObFile, ObFileRead, ResultParse, parse_obfile};
 use serde::de::DeserializeOwned;
 use std::borrow::Cow;
+use std::io::Read;
 use std::marker::PhantomData;
 use std::path::Path;
 use std::path::PathBuf;
@@ -134,8 +133,14 @@ impl<T> ObFileRead for ObFileOnDisk<T>
 where
     T: DeserializeOwned + Clone,
 {
+    /// Creates instance from [`std::io::Read`]
+    #[inline]
+    fn from_read(_read: &mut impl Read, path: Option<impl AsRef<Path>>) -> Result<Self, Error> {
+        Self::from_string("", path)
+    }
+
     /// Creates instance from path
-    fn from_file<P: AsRef<std::path::Path>>(path: P) -> Result<Self, Error> {
+    fn from_file(path: impl AsRef<Path>) -> Result<Self, Error> {
         let path_buf = path.as_ref().to_path_buf();
 
         if !path_buf.is_file() {
@@ -151,9 +156,10 @@ where
     /// Creates instance from text (requires path!)
     ///
     /// Dont use this function. Use `from_file`
-    fn from_string<P: AsRef<std::path::Path>>(
-        _raw_text: &str,
-        path: Option<P>,
+    #[inline]
+    fn from_string(
+        _raw_text: impl AsRef<str>,
+        path: Option<impl AsRef<Path>>,
     ) -> Result<Self, Error> {
         let path_buf = path.expect("Path is required").as_ref().to_path_buf();
 
@@ -169,6 +175,7 @@ mod tests {
         from_file, from_file_with_unicode, impl_all_tests_flush, impl_test_for_obfile,
     };
     use crate::test_utils::init_test_logger;
+    use std::fs::File;
     use std::io::Write;
     use tempfile::NamedTempFile;
 
@@ -230,5 +237,39 @@ mod tests {
 
         assert_eq!(file.content().unwrap(), "DATA");
         assert_eq!(properties["time"], "now");
+    }
+
+    #[test]
+    fn from_read() {
+        init_test_logger();
+        let test_data = "---\ntime: now\n---\nDATA";
+        let mut test_file = NamedTempFile::new().unwrap();
+        test_file.write_all(test_data.as_bytes()).unwrap();
+
+        let file = ObFileOnDisk::from_read_default(
+            &mut File::open(test_file.path()).unwrap(),
+            Some(test_file.path()),
+        )
+        .unwrap();
+
+        let properties = file.properties().unwrap().unwrap();
+
+        assert_eq!(file.content().unwrap(), "DATA");
+        assert_eq!(properties["time"], "now");
+    }
+
+    #[test]
+    #[should_panic]
+    fn from_read_but_without_path() {
+        init_test_logger();
+        let test_data = "---\ntime: now\n---\nDATA";
+        let mut test_file = NamedTempFile::new().unwrap();
+        test_file.write_all(test_data.as_bytes()).unwrap();
+
+        let _file = ObFileOnDisk::from_read_default(
+            &mut File::open(test_file.path()).unwrap(),
+            None::<&str>,
+        )
+        .unwrap();
     }
 }

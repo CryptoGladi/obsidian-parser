@@ -37,7 +37,8 @@ pub(crate) type DefaultProperties = HashMap<String, serde_yml::Value>;
 /// ```
 ///
 /// # Other
-/// To write and modify [`ObFile`] to a file, use the [`ObFileWrite`] trait.
+/// * To open and read [`ObFile`] to a file, use the [`ObFileRead`] trait.
+/// * To write and modify [`ObFile`] to a file, use the [`ObFileWrite`] trait.
 pub trait ObFile: Sized {
     /// Frontmatter properties type
     type Properties: Clone;
@@ -238,7 +239,7 @@ mod tests {
 pub(crate) mod impl_tests {
     use super::*;
     use crate::test_utils::init_test_logger;
-    use std::{hash::DefaultHasher, io::Write};
+    use std::io::Write;
     use tempfile::NamedTempFile;
 
     pub(crate) static TEST_DATA: &str = "---\n\

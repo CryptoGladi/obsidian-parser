@@ -103,10 +103,8 @@ use crate::obfile::DefaultProperties;
 use crate::obfile::ObFile;
 use crate::prelude::ObFileInMemory;
 use crate::{error::Error, prelude::ObFileOnDisk};
-use serde::Serialize;
-use serde::de::DeserializeOwned;
 use std::collections::HashSet;
-use std::{marker::PhantomData, path::PathBuf};
+use std::path::PathBuf;
 
 /// Represents an entire Obsidian vault
 ///
@@ -128,8 +126,11 @@ where
     pub path: PathBuf,
 }
 
-pub type VaultOnDisk<T: DeserializeOwned + Clone> = Vault<ObFileOnDisk<T>>;
-pub type VaultInMemory<T: Clone> = Vault<ObFileInMemory<T>>;
+/// Vault, but used [`ObFileOnDisk`]
+pub type VaultOnDisk<T> = Vault<ObFileOnDisk<T>>;
+
+/// Vault, but used [`ObFileInMemory`]
+pub type VaultInMemory<T> = Vault<ObFileInMemory<T>>;
 
 impl<F> Vault<F>
 where

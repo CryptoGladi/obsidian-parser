@@ -1,7 +1,10 @@
+//! Impl trait [`ObFileWrite`]
+
 use super::{Error, ObFile, OpenOptions, ResultParse, parse_obfile};
 use serde::Serialize;
 use std::io::Write;
 
+/// [`ObFile`] support write operation
 pub trait ObFileWrite: ObFile
 where
     Self::Properties: Serialize,

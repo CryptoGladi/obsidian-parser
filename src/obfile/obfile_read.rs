@@ -1,11 +1,31 @@
+//! Impl trait [`ObFileRead`]
+
 use super::{Error, ObFile};
 use serde::de::DeserializeOwned;
-use std::path::Path;
+use std::{fs::File, io::Read, path::Path};
 
+/// [`ObFile`] support read operation
 pub trait ObFileRead: ObFile
 where
     Self::Properties: DeserializeOwned,
 {
+    /// Parses an Obsidian note from a reader
+    ///
+    /// # Errors
+    /// - [`Error::Io`] for filesystem errors
+    fn from_read(read: &mut impl Read, path: Option<impl AsRef<Path>>) -> Result<Self, Error> {
+        #[cfg(feature = "logging")]
+        log::trace!("Parse obsidian file from reader");
+
+        let mut data = Vec::new();
+        read.read_to_end(&mut data)?;
+
+        // SAFETY: Notes files in Obsidian (`*.md`) ensure that the file is encoded in UTF-8
+        let text = unsafe { String::from_utf8_unchecked(data) };
+
+        Self::from_string(&text, path)
+    }
+
     /// Parses an Obsidian note from a file
     ///
     /// # Arguments
@@ -13,18 +33,14 @@ where
     ///
     /// # Errors
     /// - [`Error::Io`] for filesystem errors
-    fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
+    fn from_file(path: impl AsRef<Path>) -> Result<Self, Error> {
         let path_buf = path.as_ref().to_path_buf();
 
         #[cfg(feature = "logging")]
         log::trace!("Parse obsidian file from file: {}", path_buf.display());
 
-        let data = std::fs::read(path)?;
-
-        // SAFETY: Notes files in Obsidian (`*.md`) ensure that the file is encoded in UTF-8
-        let text = unsafe { String::from_utf8_unchecked(data) };
-
-        Self::from_string(&text, Some(path_buf))
+        let mut file = File::open(&path_buf)?;
+        Self::from_read(&mut file, Some(path_buf))
     }
 
     /// Parses an Obsidian note from a string
@@ -36,5 +52,8 @@ where
     /// # Errors
     /// - [`Error::InvalidFormat`] for malformed frontmatter
     /// - [`Error::Yaml`] for invalid YAML syntax
-    fn from_string<P: AsRef<Path>>(raw_text: &str, path: Option<P>) -> Result<Self, Error>;
+    fn from_string(
+        raw_text: impl AsRef<str>,
+        path: Option<impl AsRef<Path>>,
+    ) -> Result<Self, Error>;
 }

@@ -4,7 +4,6 @@ use crate::{
     vault::Vault,
 };
 use petgraph::{EdgeType, Graph};
-use serde::de::DeserializeOwned;
 use std::path::Path;
 
 pub struct GraphBuilder<'a, F, Ty>

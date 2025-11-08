@@ -7,7 +7,7 @@ use std::{
 
 use super::{DefaultProperties, ObFile, ObFileRead, parse_obfile};
 use crate::{error::Error, obfile::ResultParse};
-use serde::{Serialize, de::DeserializeOwned};
+use serde::de::DeserializeOwned;
 
 /// In-memory representation of an Obsidian note file
 ///
@@ -101,11 +101,12 @@ where
     /// assert_eq!(properties.title, "Example");
     /// assert_eq!(file.content().unwrap(), "Content");
     /// ```
-    fn from_string<P: AsRef<std::path::Path>>(
-        raw_text: &str,
-        path: Option<P>,
+    fn from_string(
+        raw_text: impl AsRef<str>,
+        path: Option<impl AsRef<Path>>,
     ) -> Result<Self, Error> {
         let path_buf = path.map(|x| x.as_ref().to_path_buf());
+        let raw_text = raw_text.as_ref();
 
         #[cfg(feature = "logging")]
         log::trace!(

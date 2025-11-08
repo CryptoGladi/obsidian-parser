@@ -1,14 +1,11 @@
 //! Module for open impl [`Vault`]
 
-use super::{DefaultProperties, Error, ObFile, Vault};
+use super::{DefaultProperties, Error, Vault};
 use crate::{
     obfile::ObFileRead, prelude::ObFileOnDisk, vault::vault_get_files::get_files_for_parse,
 };
 use serde::de::DeserializeOwned;
-use std::{
-    marker::PhantomData,
-    path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 
 fn check_vault(path: impl AsRef<Path>) -> Result<(), Error> {
     let path_buf = path.as_ref().to_path_buf();
