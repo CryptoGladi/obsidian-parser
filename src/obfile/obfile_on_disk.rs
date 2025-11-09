@@ -58,6 +58,9 @@ where
     /// - If file doesn't exist
     /// - On filesystem errors
     fn properties(&self) -> Result<Option<Cow<'_, T>>, Error> {
+        #[cfg(feature = "logging")]
+        log::trace!("Get properties from file: `{}`", self.path.display());
+
         let data = std::fs::read(&self.path)?;
 
         // SAFETY: Notes files in Obsidian (`*.md`) ensure that the file is encoded in UTF-8
@@ -97,6 +100,9 @@ where
     ///
     /// For repeated access, consider caching or [`ObFileInMemory`](crate::obfile::obfile_in_memory::ObFileInMemory).
     fn content(&self) -> Result<Cow<'_, str>, Error> {
+        #[cfg(feature = "logging")]
+        log::trace!("Get content from file: `{}`", self.path.display());
+
         let data = std::fs::read(&self.path)?;
 
         // SAFETY: Notes files in Obsidian (`*.md`) ensure that the file is encoded in UTF-8
