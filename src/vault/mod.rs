@@ -117,7 +117,7 @@ use std::path::PathBuf;
 #[derive(Debug, Default, PartialEq, Eq, Clone)]
 pub struct Vault<F = ObFileOnDisk<DefaultProperties>>
 where
-    F: ObFile + Send,
+    F: ObFile,
 {
     /// All files in the vault
     pub files: Vec<F>,
@@ -134,7 +134,7 @@ pub type VaultInMemory<T> = Vault<ObFileInMemory<T>>;
 
 impl<F> Vault<F>
 where
-    F: ObFile + Send,
+    F: ObFile,
 {
     /// Returns duplicated note name
     ///

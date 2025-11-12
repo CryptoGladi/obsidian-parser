@@ -2,10 +2,13 @@
 
 use super::{DefaultProperties, Error, Vault};
 use crate::{
-    obfile::ObFileRead, prelude::ObFileOnDisk, vault::vault_get_files::get_files_for_parse,
+    obfile::{ObFile, ObFileRead},
+    prelude::ObFileOnDisk,
+    vault::vault_get_files::get_files_for_parse,
 };
 use serde::de::DeserializeOwned;
 use std::path::{Path, PathBuf};
+use walkdir::{DirEntry, WalkDir};
 
 fn check_vault(path: impl AsRef<Path>) -> Result<(), Error> {
     let path_buf = path.as_ref().to_path_buf();
@@ -18,6 +21,81 @@ fn check_vault(path: impl AsRef<Path>) -> Result<(), Error> {
     }
 
     Ok(())
+}
+
+#[derive(Debug)]
+pub struct VaultBuilder {
+    path: PathBuf,
+    include_hidden: bool,
+}
+
+fn is_hidden(path: impl AsRef<Path>) -> bool {
+    path.as_ref()
+        .file_name()
+        .is_some_and(|e| e.to_str().is_some_and(|name| name.starts_with('.')))
+}
+
+fn is_md_file(path: impl AsRef<Path>) -> bool {
+    path.as_ref()
+        .extension()
+        .is_some_and(|p| p.eq_ignore_ascii_case("md"))
+}
+
+impl VaultBuilder {
+    pub fn new(path: impl AsRef<Path>) -> Self {
+        Self {
+            path: path.as_ref().to_path_buf(),
+            include_hidden: false,
+        }
+    }
+
+    pub fn include_hidden(mut self, include_hidden: bool) -> Self {
+        self.include_hidden = include_hidden;
+        self
+    }
+
+    fn ignored_hidden_files(include_hidden: bool, entry: &DirEntry) -> bool {
+        if !include_hidden && is_hidden(entry.path()) {
+            return false;
+        }
+
+        return true;
+    }
+
+    pub fn into_iter<F>(self) -> impl Iterator<Item = Result<F, Error>>
+    where
+        F: ObFileRead,
+        F::Properties: DeserializeOwned,
+    {
+        let include_hidden = self.include_hidden;
+
+        let files = WalkDir::new(self.path)
+            .into_iter()
+            .filter_entry(move |e| e.depth() == 0 || Self::ignored_hidden_files(include_hidden, e))
+            .filter_map(Result::ok)
+            .filter(|entry| entry.file_type().is_file())
+            .map(|entry| entry.into_path())
+            .filter(|path| is_md_file(path));
+
+        files.map(|path| F::from_file(path))
+    }
+}
+
+pub trait IteratorVaultBulder<F>: Iterator<Item = F>
+where
+    Self: Sized,
+    F: ObFile,
+{
+    fn build_vault(self) -> Vec<F> {
+        Vec::from_iter(self)
+    }
+}
+
+impl<F, I> IteratorVaultBulder<F> for I
+where
+    F: ObFile,
+    I: Iterator<Item = F>,
+{
 }
 
 impl<F> Vault<F>

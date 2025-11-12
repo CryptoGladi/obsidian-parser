@@ -8,12 +8,16 @@ use std::{fs::File, io::Read, path::Path};
 pub trait ObFileRead: ObFile
 where
     Self::Properties: DeserializeOwned,
+    Self::Error: From<std::io::Error>,
 {
     /// Parses an Obsidian note from a reader
     ///
     /// # Errors
     /// - [`Error::Io`] for filesystem errors
-    fn from_read(read: &mut impl Read, path: Option<impl AsRef<Path>>) -> Result<Self, Error> {
+    fn from_read(
+        read: &mut impl Read,
+        path: Option<impl AsRef<Path>>,
+    ) -> Result<Self, Self::Error> {
         #[cfg(feature = "logging")]
         log::trace!("Parse obsidian file from reader");
 
@@ -33,7 +37,7 @@ where
     ///
     /// # Errors
     /// - [`Error::Io`] for filesystem errors
-    fn from_file(path: impl AsRef<Path>) -> Result<Self, Error> {
+    fn from_file(path: impl AsRef<Path>) -> Result<Self, Self::Error> {
         let path_buf = path.as_ref().to_path_buf();
 
         #[cfg(feature = "logging")]
@@ -55,5 +59,5 @@ where
     fn from_string(
         raw_text: impl AsRef<str>,
         path: Option<impl AsRef<Path>>,
-    ) -> Result<Self, Error>;
+    ) -> Result<Self, Self::Error>;
 }

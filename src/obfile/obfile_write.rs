@@ -8,6 +8,7 @@ use std::io::Write;
 pub trait ObFileWrite: ObFile
 where
     Self::Properties: Serialize,
+    Self::Error: From<std::io::Error> + From<serde_yml::Error>,
 {
     /// Flush only `content`
     ///
@@ -15,7 +16,7 @@ where
     ///
     /// # Errors
     /// - [`Error::Io`] for filesystem errors
-    fn flush_content(&self, open_option: &OpenOptions) -> Result<(), Error> {
+    fn flush_content(&self, open_option: &OpenOptions) -> Result<(), Self::Error> {
         if let Some(path) = self.path() {
             let text = std::fs::read_to_string(&path)?;
             let parsed = parse_obfile(&text)?;
@@ -41,7 +42,7 @@ where
     /// Ignore if path is `None`
     /// # Errors
     /// - [`Error::Io`] for filesystem errors
-    fn flush_properties(&self, open_option: &OpenOptions) -> Result<(), Error> {
+    fn flush_properties(&self, open_option: &OpenOptions) -> Result<(), Self::Error> {
         if let Some(path) = self.path() {
             let text = std::fs::read_to_string(&path)?;
             let parsed = parse_obfile(&text)?;
@@ -75,7 +76,7 @@ where
     /// Ignore if path is `None`
     /// # Errors
     /// - [`Error::Io`] for filesystem errors
-    fn flush(&self, open_option: &OpenOptions) -> Result<(), Error> {
+    fn flush(&self, open_option: &OpenOptions) -> Result<(), Self::Error> {
         if let Some(path) = self.path() {
             let mut file = open_option.open(path)?;
 
@@ -96,4 +97,9 @@ where
     }
 }
 
-impl<T: ObFile> ObFileWrite for T where T::Properties: Serialize {}
+impl<T: ObFile> ObFileWrite for T
+where
+    T::Properties: Serialize,
+    T::Error: From<std::io::Error>,
+{
+}

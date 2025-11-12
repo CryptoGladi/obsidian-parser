@@ -43,13 +43,15 @@ pub trait ObFile: Sized {
     /// Frontmatter properties type
     type Properties: Clone;
 
+    type Error: std::error::Error;
+
     /// Returns the parsed properties of frontmatter
     ///
     /// Returns [`None`] if the note has no properties
     ///
     /// # Errors
     /// Usually errors are related to [`Error::Io`]
-    fn properties(&self) -> Result<Option<Cow<'_, Self::Properties>>, Error>;
+    fn properties(&self) -> Result<Option<Cow<'_, Self::Properties>>, Self::Error>;
 
     /// Returns the main content body of the note (excluding frontmatter)
     ///
@@ -59,7 +61,7 @@ pub trait ObFile: Sized {
     ///
     /// # Errors
     /// Usually errors are related to [`Error::Io`]
-    fn content(&self) -> Result<Cow<'_, str>, Error>;
+    fn content(&self) -> Result<Cow<'_, str>, Self::Error>;
 
     /// Returns the source file path if available
     ///

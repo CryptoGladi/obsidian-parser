@@ -6,8 +6,9 @@ use std::{
 };
 
 use super::{DefaultProperties, ObFile, ObFileRead, parse_obfile};
-use crate::{error::Error, obfile::ResultParse};
+use crate::obfile::ResultParse;
 use serde::de::DeserializeOwned;
+use thiserror::Error;
 
 /// In-memory representation of an Obsidian note file
 ///
@@ -39,19 +40,26 @@ where
     properties: Option<T>,
 }
 
+#[derive(Debug, Error)]
+pub enum Error {
+    #[error("32")]
+    IO(#[from] std::io::Error),
+}
+
 impl<T> ObFile for ObFileInMemory<T>
 where
     T: Clone,
 {
     type Properties = T;
+    type Error = self::Error;
 
     #[inline]
-    fn properties(&self) -> Result<Option<Cow<'_, T>>, Error> {
+    fn properties(&self) -> Result<Option<Cow<'_, T>>, Self::Error> {
         Ok(self.properties.as_ref().map(|p| Cow::Borrowed(p)))
     }
 
     #[inline]
-    fn content(&self) -> Result<Cow<'_, str>, Error> {
+    fn content(&self) -> Result<Cow<'_, str>, Self::Error> {
         Ok(Cow::Borrowed(&self.content))
     }
 
