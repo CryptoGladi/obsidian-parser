@@ -32,7 +32,7 @@ where
                     format!("---\n{}\n---\n{}", properties, self.content()?).as_bytes(),
                 )?,
                 parser::ResultParse::WithoutProperties => {
-                    file.write_all(self.content()?.as_bytes())?
+                    file.write_all(self.content()?.as_bytes())?;
                 }
             }
         }
@@ -68,7 +68,7 @@ where
                     None => file.write_all(self.content()?.as_bytes())?,
                 },
                 parser::ResultParse::WithoutProperties => {
-                    file.write_all(self.content()?.as_bytes())?
+                    file.write_all(self.content()?.as_bytes())?;
                 }
             }
         }

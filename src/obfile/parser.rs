@@ -34,7 +34,7 @@ pub fn parse_links(text: &str) -> impl Iterator<Item = &str> {
     })
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum ResultParse<'a> {
     WithProperties {
         content: &'a str,
@@ -72,20 +72,19 @@ pub fn parse_obfile(raw_text: &str) -> Result<ResultParse<'_>, Error> {
 #[cfg(test)]
 mod tests {
     use super::{ResultParse, parse_obfile};
-    use crate::test_utils::init_test_logger;
 
-    #[test]
+    #[cfg_attr(feature = "logging", test_log::test)]
+    #[cfg_attr(not(feature = "logging"), test)]
     fn parse_obfile_without_properties() {
-        init_test_logger();
         let test_data = "test_data";
         let result = parse_obfile(test_data).unwrap();
 
         assert_eq!(result, ResultParse::WithoutProperties);
     }
 
-    #[test]
+    #[cfg_attr(feature = "logging", test_log::test)]
+    #[cfg_attr(not(feature = "logging"), test)]
     fn parse_obfile_with_properties() {
-        init_test_logger();
         let test_data = "---\nproperties data\n---\ntest data";
         let result = parse_obfile(test_data).unwrap();
 
@@ -98,9 +97,9 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(feature = "logging", test_log::test)]
+    #[cfg_attr(not(feature = "logging"), test)]
     fn parse_obfile_without_properties_but_with_closed() {
-        init_test_logger();
         let test_data1 = "test_data---";
         let test_data2 = "test_data\n---\n";
 
@@ -111,35 +110,35 @@ mod tests {
         assert_eq!(result2, ResultParse::WithoutProperties);
     }
 
-    #[test]
+    #[cfg_attr(feature = "logging", test_log::test)]
+    #[cfg_attr(not(feature = "logging"), test)]
     #[should_panic]
     fn parse_obfile_with_properties_but_without_closed() {
-        init_test_logger();
         let test_data = "---\nproperties data\ntest data";
         let _ = parse_obfile(test_data).unwrap();
     }
 
-    #[test]
+    #[cfg_attr(feature = "logging", test_log::test)]
+    #[cfg_attr(not(feature = "logging"), test)]
     fn parse_obfile_with_() {
-        init_test_logger();
         let test_data = "---properties data";
 
         let result = parse_obfile(test_data).unwrap();
         assert_eq!(result, ResultParse::WithoutProperties);
     }
 
-    #[test]
+    #[cfg_attr(feature = "logging", test_log::test)]
+    #[cfg_attr(not(feature = "logging"), test)]
     fn parse_obfile_without_properties_but_with_spaces() {
-        init_test_logger();
         let test_data = "   ---\ndata";
 
         let result = parse_obfile(test_data).unwrap();
         assert_eq!(result, ResultParse::WithoutProperties);
     }
 
-    #[test]
+    #[cfg_attr(feature = "logging", test_log::test)]
+    #[cfg_attr(not(feature = "logging"), test)]
     fn parse_obfile_with_properties_but_check_trim_end() {
-        init_test_logger();
         let test_data = "---\r\nproperties data\r\n---\r   \ntest data";
         let result = parse_obfile(test_data).unwrap();
 
@@ -152,9 +151,9 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(feature = "logging", test_log::test)]
+    #[cfg_attr(not(feature = "logging"), test)]
     fn test_parse_links() {
-        init_test_logger();
         let test_data =
             "[[Note]] [[Note|Alias]] [[Note^block]] [[Note#Heading|Alias]] [[Note^block|Alias]]";
 

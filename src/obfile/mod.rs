@@ -45,6 +45,7 @@ pub trait ObFile: Sized {
     /// Frontmatter properties type
     type Properties: Clone;
 
+    /// Error type
     type Error: std::error::Error;
 
     /// Returns the parsed properties of frontmatter
@@ -85,7 +86,8 @@ pub trait ObFile: Sized {
 pub(crate) mod impl_tests {
     macro_rules! impl_test_for_obfile {
         ($name_test:ident, $fn_test:ident, $impl_obfile:path) => {
-            #[test]
+            #[cfg_attr(feature = "logging", test_log::test)]
+            #[cfg_attr(not(feature = "logging"), test)]
             fn $name_test() {
                 $fn_test::<$impl_obfile>().unwrap();
             }

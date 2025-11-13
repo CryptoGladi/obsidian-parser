@@ -67,7 +67,7 @@ pub(crate) mod tests {
     use super::*;
     use crate::{
         obfile::{DefaultProperties, parser},
-        test_utils::{init_test_logger, is_error},
+        test_utils::is_error,
     };
     use std::io::{Cursor, Write};
     use tempfile::NamedTempFile;
@@ -80,6 +80,100 @@ Test data\n\
 ---\n\
 Two test data";
 
+    const BROKEN_DATA: &str = "---\n\
+    asdfv:--fs\n\
+    sfsf\n\
+    ---\n\
+    TestData";
+
+    const UNICODE_DATA: &str = "---\ndata: 💩\n---\nSuper data 💩💩💩";
+
+    const SPACE_DATA: &str = "  ---\ntest: test-data\n---\n";
+
+    fn test_data<T>(file: T) -> Result<(), T::Error>
+    where
+        T: ObFileRead<Properties = DefaultProperties>,
+        T::Error: From<std::io::Error>,
+    {
+        let properties = file.properties().unwrap().unwrap();
+
+        assert_eq!(properties["topic"], "life");
+        assert_eq!(properties["created"], "2025-03-16");
+        assert_eq!(file.content().unwrap(), "Test data\n---\nTwo test data");
+
+        Ok(())
+    }
+
+    fn note_name<T>(file1: T, file2: T) -> Result<(), T::Error>
+    where
+        T: ObFileRead<Properties = DefaultProperties>,
+        T::Error: From<std::io::Error>,
+    {
+        assert_eq!(file1.note_name(), None);
+        assert_eq!(file2.note_name(), Some("Super note".to_string()));
+
+        Ok(())
+    }
+
+    fn without_properties<T>(file: T, text: &str) -> Result<(), T::Error>
+    where
+        T: ObFileRead<Properties = DefaultProperties>,
+        T::Error: From<std::io::Error>,
+    {
+        assert_eq!(file.properties().unwrap(), None);
+        assert_eq!(file.content().unwrap(), text);
+
+        Ok(())
+    }
+
+    fn invalid_yaml<T>(result: Result<T, T::Error>) -> Result<(), T::Error>
+    where
+        T: ObFileRead<Properties = DefaultProperties>,
+        T::Error: From<std::io::Error>,
+    {
+        let error = result.err().unwrap();
+
+        assert!(is_error::<serde_yml::Error>(error));
+        Ok(())
+    }
+
+    fn invalid_format<T>(result: Result<T, T::Error>) -> Result<(), T::Error>
+    where
+        T: ObFileRead<Properties = DefaultProperties>,
+        T::Error: From<std::io::Error>,
+    {
+        let error = result.err().unwrap();
+
+        assert!(is_error::<parser::Error>(error));
+        Ok(())
+    }
+
+    fn with_unicode<T>(file: T) -> Result<(), T::Error>
+    where
+        T: ObFileRead<Properties = DefaultProperties>,
+        T::Error: From<std::io::Error>,
+    {
+        let properties = file.properties().unwrap().unwrap();
+
+        assert_eq!(properties["data"], "💩");
+        assert_eq!(file.content().unwrap(), "Super data 💩💩💩");
+
+        Ok(())
+    }
+
+    fn space_with_properties<T>(file: T, content: &str) -> Result<(), T::Error>
+    where
+        T: ObFileRead<Properties = DefaultProperties>,
+        T::Error: From<std::io::Error>,
+    {
+        let properties = file.properties().unwrap();
+
+        assert_eq!(file.content().unwrap(), content);
+        assert_eq!(properties, None);
+
+        Ok(())
+    }
+
     pub(crate) fn from_reader<T>() -> Result<(), T::Error>
     where
         T: ObFileRead<Properties = DefaultProperties>,
@@ -87,11 +181,77 @@ Two test data";
     {
         let mut reader = Cursor::new(TEST_DATA);
         let file = T::from_reader(&mut reader, None::<&str>)?;
-        let properties = file.properties().unwrap().unwrap();
 
-        assert_eq!(properties["topic"], "life");
-        assert_eq!(properties["created"], "2025-03-16");
-        assert_eq!(file.content().unwrap(), "Test data\n---\nTwo test data");
+        test_data(file)?;
+        Ok(())
+    }
+
+    pub(crate) fn from_reader_note_name<T>() -> Result<(), T::Error>
+    where
+        T: ObFileRead<Properties = DefaultProperties>,
+        T::Error: From<std::io::Error>,
+    {
+        let file1 = T::from_reader(&mut Cursor::new(TEST_DATA), None::<&str>)?;
+        let file2 = T::from_reader(&mut Cursor::new(TEST_DATA), Some("Super note.md"))?;
+
+        note_name(file1, file2)?;
+        Ok(())
+    }
+
+    pub(crate) fn from_reader_without_properties<T>() -> Result<(), T::Error>
+    where
+        T: ObFileRead<Properties = DefaultProperties>,
+        T::Error: From<std::io::Error>,
+    {
+        let test_data = "TEST_DATA";
+        let file = T::from_reader(&mut Cursor::new(test_data), None::<&str>)?;
+
+        without_properties(file, test_data)?;
+        Ok(())
+    }
+
+    pub(crate) fn from_reader_invalid_yaml<T>() -> Result<(), T::Error>
+    where
+        T: ObFileRead<Properties = DefaultProperties>,
+        T::Error: From<std::io::Error>,
+    {
+        let result = T::from_reader(&mut Cursor::new(BROKEN_DATA), None::<&str>);
+
+        invalid_yaml(result)?;
+        Ok(())
+    }
+
+    pub(crate) fn from_reader_invalid_format<T>() -> Result<(), T::Error>
+    where
+        T: ObFileRead<Properties = DefaultProperties>,
+        T::Error: From<std::io::Error>,
+    {
+        let broken_data = "---\n";
+        let result = T::from_reader(&mut Cursor::new(broken_data), None::<&str>);
+
+        invalid_format(result)?;
+        Ok(())
+    }
+
+    pub(crate) fn from_reader_with_unicode<T>() -> Result<(), T::Error>
+    where
+        T: ObFileRead<Properties = DefaultProperties>,
+        T::Error: From<std::io::Error>,
+    {
+        let file = T::from_reader(&mut Cursor::new(UNICODE_DATA), None::<&str>)?;
+
+        with_unicode(file)?;
+        Ok(())
+    }
+
+    pub(crate) fn from_reader_space_with_properties<T>() -> Result<(), T::Error>
+    where
+        T: ObFileRead<Properties = DefaultProperties>,
+        T::Error: From<std::io::Error>,
+    {
+        let file = T::from_reader(&mut Cursor::new(SPACE_DATA), None::<&str>)?;
+
+        space_with_properties(file, SPACE_DATA)?;
         Ok(())
     }
 
@@ -100,13 +260,9 @@ Two test data";
         T: ObFileRead<Properties = DefaultProperties>,
         T::Error: From<std::io::Error>,
     {
-        init_test_logger();
         let file = T::from_string(TEST_DATA, None::<&str>)?;
-        let properties = file.properties().unwrap().unwrap();
 
-        assert_eq!(properties["topic"], "life");
-        assert_eq!(properties["created"], "2025-03-16");
-        assert_eq!(file.content().unwrap(), "Test data\n---\nTwo test data");
+        test_data(file)?;
         Ok(())
     }
 
@@ -115,12 +271,10 @@ Two test data";
         T: ObFileRead<Properties = DefaultProperties>,
         T::Error: From<std::io::Error>,
     {
-        init_test_logger();
         let file1 = T::from_string(TEST_DATA, None::<&str>)?;
-        let file2 = T::from_string(TEST_DATA, Some("Super node.md"))?;
+        let file2 = T::from_string(TEST_DATA, Some("Super note.md"))?;
 
-        assert_eq!(file1.note_name(), None);
-        assert_eq!(file2.note_name(), Some("Super node".to_string()));
+        note_name(file1, file2)?;
         Ok(())
     }
 
@@ -129,12 +283,10 @@ Two test data";
         T: ObFileRead<Properties = DefaultProperties>,
         T::Error: From<std::io::Error>,
     {
-        init_test_logger();
         let test_data = "TEST_DATA";
         let file = T::from_string(test_data, None::<&str>)?;
 
-        assert_eq!(file.properties().unwrap(), None);
-        assert_eq!(file.content().unwrap(), test_data);
+        without_properties(file, test_data)?;
         Ok(())
     }
 
@@ -143,17 +295,9 @@ Two test data";
         T: ObFileRead<Properties = DefaultProperties>,
         T::Error: From<std::io::Error> + From<serde_yml::Error> + 'static,
     {
-        init_test_logger();
-        let broken_data = "---\n\
-    asdfv:--fs\n\
-    sfsf\n\
-    ---\n\
-    TestData";
+        let result = T::from_string(BROKEN_DATA, None::<&str>);
 
-        let result = T::from_string(broken_data, None::<&str>);
-        let error = result.err().unwrap();
-
-        assert!(is_error::<serde_yml::Error>(error));
+        invalid_yaml(result)?;
         Ok(())
     }
 
@@ -162,13 +306,11 @@ Two test data";
         T: ObFileRead<Properties = DefaultProperties>,
         T::Error: From<std::io::Error> + From<parser::Error>,
     {
-        init_test_logger();
         let broken_data = "---\n";
 
         let result = T::from_string(broken_data, None::<&str>);
-        let error = result.err().unwrap();
+        invalid_format(result)?;
 
-        assert!(is_error::<parser::Error>(error));
         Ok(())
     }
 
@@ -177,13 +319,9 @@ Two test data";
         T: ObFileRead<Properties = DefaultProperties>,
         T::Error: From<std::io::Error>,
     {
-        init_test_logger();
-        let data = "---\ndata: 💩\n---\nSuper data 💩💩💩";
-        let file = T::from_string(data, None::<&str>)?;
-        let properties = file.properties().unwrap().unwrap();
+        let file = T::from_string(UNICODE_DATA, None::<&str>)?;
 
-        assert_eq!(properties["data"], "💩");
-        assert_eq!(file.content().unwrap(), "Super data 💩💩💩");
+        with_unicode(file)?;
         Ok(())
     }
 
@@ -192,13 +330,9 @@ Two test data";
         T: ObFileRead<Properties = DefaultProperties>,
         T::Error: From<std::io::Error>,
     {
-        init_test_logger();
-        let data = "  ---\ntest: test-data\n---\n";
-        let file = T::from_string(data, None::<&str>)?;
-        let properties = file.properties().unwrap();
+        let file = T::from_string(SPACE_DATA, None::<&str>)?;
 
-        assert_eq!(file.content().unwrap(), data);
-        assert_eq!(properties, None);
+        space_with_properties(file, SPACE_DATA)?;
         Ok(())
     }
 
@@ -207,14 +341,12 @@ Two test data";
         T: ObFileRead<Properties = DefaultProperties>,
         T::Error: From<std::io::Error>,
     {
-        init_test_logger();
         let mut temp_file = NamedTempFile::new().unwrap();
-        temp_file.write_all(b"TEST_DATA").unwrap();
+        temp_file.write_all(TEST_DATA.as_bytes()).unwrap();
 
         let file = T::from_file(temp_file.path()).unwrap();
-        assert_eq!(file.content().unwrap(), "TEST_DATA");
-        assert_eq!(file.path().unwrap(), temp_file.path());
-        assert_eq!(file.properties().unwrap(), None);
+
+        test_data(file)?;
         Ok(())
     }
 
@@ -223,7 +355,6 @@ Two test data";
         T: ObFileRead<Properties = DefaultProperties>,
         T::Error: From<std::io::Error>,
     {
-        init_test_logger();
         let mut temp_file = NamedTempFile::new().unwrap();
         temp_file.write_all(b"TEST_DATA").unwrap();
 
@@ -245,15 +376,13 @@ Two test data";
         T: ObFileRead<Properties = DefaultProperties>,
         T::Error: From<std::io::Error>,
     {
-        init_test_logger();
         let test_data = "TEST_DATA";
         let mut test_file = NamedTempFile::new().unwrap();
         test_file.write_all(test_data.as_bytes()).unwrap();
 
         let file = T::from_file(test_file.path())?;
 
-        assert_eq!(file.properties().unwrap(), None);
-        assert_eq!(file.content().unwrap(), test_data);
+        without_properties(file, test_data)?;
         Ok(())
     }
 
@@ -262,20 +391,12 @@ Two test data";
         T: ObFileRead<Properties = DefaultProperties>,
         T::Error: From<std::io::Error> + From<serde_yml::Error>,
     {
-        init_test_logger();
-        let broken_data = "---\n\
-    asdfv:--fs\n\
-    sfsf\n\
-    ---\n\
-    TestData";
-
         let mut test_file = NamedTempFile::new().unwrap();
-        test_file.write_all(broken_data.as_bytes()).unwrap();
+        test_file.write_all(BROKEN_DATA.as_bytes()).unwrap();
 
         let result = T::from_file(test_file.path());
-        let error = result.err().unwrap();
 
-        assert!(is_error::<serde_yml::Error>(error));
+        invalid_yaml(result)?;
         Ok(())
     }
 
@@ -284,15 +405,13 @@ Two test data";
         T: ObFileRead<Properties = DefaultProperties>,
         T::Error: From<std::io::Error> + From<parser::Error>,
     {
-        init_test_logger();
         let broken_data = "---\n";
         let mut test_file = NamedTempFile::new().unwrap();
         test_file.write_all(broken_data.as_bytes()).unwrap();
 
         let result = T::from_file(test_file.path());
-        let error = result.err().unwrap();
 
-        assert!(is_error::<parser::Error>(error));
+        invalid_format(result)?;
         Ok(())
     }
 
@@ -301,16 +420,12 @@ Two test data";
         T: ObFileRead<Properties = DefaultProperties>,
         T::Error: From<std::io::Error>,
     {
-        init_test_logger();
-        let data = "---\ndata: 💩\n---\nSuper data 💩💩💩";
         let mut test_file = NamedTempFile::new().unwrap();
-        test_file.write_all(data.as_bytes()).unwrap();
+        test_file.write_all(UNICODE_DATA.as_bytes()).unwrap();
 
         let file = T::from_file(test_file.path())?;
-        let properties = file.properties().unwrap().unwrap();
 
-        assert_eq!(properties["data"], "💩");
-        assert_eq!(file.content().unwrap(), "Super data 💩💩💩");
+        with_unicode(file)?;
         Ok(())
     }
 
@@ -319,15 +434,13 @@ Two test data";
         T: ObFileRead<Properties = DefaultProperties>,
         T::Error: From<std::io::Error>,
     {
-        init_test_logger();
         let data = "  ---\ntest: test-data\n---\n";
         let mut test_file = NamedTempFile::new().unwrap();
         test_file.write_all(data.as_bytes()).unwrap();
 
-        let file = T::from_string(data, None::<&str>)?;
+        let file = T::from_file(test_file.path())?;
 
-        assert_eq!(file.content().unwrap(), data);
-        assert_eq!(file.properties().unwrap(), None);
+        space_with_properties(file, data)?;
         Ok(())
     }
 
@@ -337,6 +450,37 @@ Two test data";
             use $crate::obfile::obfile_read::tests::*;
 
             impl_test_for_obfile!(impl_from_reader, from_reader, $impl_obfile);
+
+            impl_test_for_obfile!(
+                impl_from_reader_note_name,
+                from_reader_note_name,
+                $impl_obfile
+            );
+            impl_test_for_obfile!(
+                impl_from_reader_without_properties,
+                from_reader_without_properties,
+                $impl_obfile
+            );
+            impl_test_for_obfile!(
+                impl_from_reader_with_invalid_yaml,
+                from_reader_invalid_yaml,
+                $impl_obfile
+            );
+            impl_test_for_obfile!(
+                impl_from_reader_invalid_format,
+                from_reader_invalid_format,
+                $impl_obfile
+            );
+            impl_test_for_obfile!(
+                impl_from_reader_with_unicode,
+                from_reader_with_unicode,
+                $impl_obfile
+            );
+            impl_test_for_obfile!(
+                impl_from_reader_space_with_properties,
+                from_reader_space_with_properties,
+                $impl_obfile
+            );
         };
     }
 

@@ -1,6 +1,6 @@
 //! On-disk representation of an Obsidian note file
 
-use crate::obfile::parser::{ResultParse, parse_obfile};
+use crate::obfile::parser::{self, ResultParse, parse_obfile};
 use crate::obfile::{DefaultProperties, ObFile, ObFileRead};
 use serde::de::DeserializeOwned;
 use std::borrow::Cow;
@@ -48,16 +48,48 @@ where
 
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("IO error")]
+    /// I/O operation failed (file reading, directory traversal, etc.)
+    #[error("IO error: {0}")]
     IO(#[from] std::io::Error),
 
-    #[error("Parsing error")]
-    Parse(#[from] super::parser::Error),
+    /// Invalid frontmatter format detected
+    ///
+    /// Occurs when:
+    /// - Frontmatter delimiters are incomplete (`---` missing)
+    /// - Content between delimiters is empty
+    ///
+    /// # Example
+    /// Parsing a file with malformed frontmatter:
+    /// ```text
+    /// ---
+    /// incomplete yaml
+    /// // Missing closing ---
+    /// ```
+    #[error("Invalid frontmatter format")]
+    InvalidFormat(#[from] parser::Error),
 
-    #[error("Serde error")]
-    Serde(#[from] serde_yml::Error),
+    /// YAML parsing error in frontmatter properties
+    ///
+    /// # Example
+    /// Parsing invalid YAML syntax:
+    /// ```text
+    /// ---
+    /// key: @invalid_value
+    /// ---
+    /// ```
+    #[error("YAML parsing error: {0}")]
+    Yaml(#[from] serde_yml::Error),
 
-    #[error("Is `{0}` not a file")]
+    /// Expected a file path
+    ///
+    /// # Example
+    /// ```no_run
+    /// use obsidian_parser::prelude::*;
+    ///
+    /// // Will fail if passed a directory path
+    /// ObFileOnDisk::from_file_default("/home/test");
+    /// ```
+    #[error("Path: `{0}` is not a directory")]
     IsNotFile(PathBuf),
 }
 
@@ -158,20 +190,20 @@ where
 {
     /// Creates instance from [`std::io::Read`]
     #[inline]
-    fn from_reader(_read: &mut impl Read, path: Option<impl AsRef<Path>>) -> Result<Self, Error> {
+    fn from_reader(_reader: &mut impl Read, path: Option<impl AsRef<Path>>) -> Result<Self, Error> {
         Self::from_string("", path)
     }
 
     /// Creates instance from path
     fn from_file(path: impl AsRef<Path>) -> Result<Self, Error> {
-        let path_buf = path.as_ref().to_path_buf();
+        let path = path.as_ref().to_path_buf();
 
-        if !path_buf.is_file() {
-            return Err(Error::IsNotFile(path_buf));
+        if !path.is_file() {
+            return Err(Error::IsNotFile(path));
         }
 
         Ok(Self {
-            path: path_buf,
+            path,
             phantom: PhantomData,
         })
     }
@@ -197,7 +229,6 @@ mod tests {
     use crate::obfile::impl_tests::impl_test_for_obfile;
     use crate::obfile::obfile_read::tests::{from_file, from_file_with_unicode};
     use crate::obfile::obfile_write::tests::impl_all_tests_flush;
-    use crate::test_utils::init_test_logger;
     use std::fs::File;
     use std::io::Write;
     use tempfile::NamedTempFile;
@@ -211,25 +242,25 @@ mod tests {
         ObFileOnDisk
     );
 
-    #[test]
+    #[cfg_attr(feature = "logging", test_log::test)]
+    #[cfg_attr(not(feature = "logging"), test)]
     #[should_panic]
     fn use_from_string_without_path() {
-        init_test_logger();
         ObFileOnDisk::from_string_default("", None::<&str>).unwrap();
     }
 
-    #[test]
+    #[cfg_attr(feature = "logging", test_log::test)]
+    #[cfg_attr(not(feature = "logging"), test)]
     #[should_panic]
     fn use_from_file_with_path_not_file() {
-        init_test_logger();
         let temp_dir = tempfile::tempdir().unwrap();
 
         ObFileOnDisk::from_file_default(temp_dir.path()).unwrap();
     }
 
-    #[test]
+    #[cfg_attr(feature = "logging", test_log::test)]
+    #[cfg_attr(not(feature = "logging"), test)]
     fn get_path() {
-        init_test_logger();
         let test_file = NamedTempFile::new().unwrap();
         let file = ObFileOnDisk::from_file_default(test_file.path()).unwrap();
 
@@ -237,9 +268,9 @@ mod tests {
         assert_eq!(file.path, test_file.path());
     }
 
-    #[test]
+    #[cfg_attr(feature = "logging", test_log::test)]
+    #[cfg_attr(not(feature = "logging"), test)]
     fn get_content() {
-        init_test_logger();
         let test_data = "DATA";
         let mut test_file = NamedTempFile::new().unwrap();
         test_file.write_all(test_data.as_bytes()).unwrap();
@@ -248,9 +279,9 @@ mod tests {
         assert_eq!(file.content().unwrap(), test_data);
     }
 
-    #[test]
+    #[cfg_attr(feature = "logging", test_log::test)]
+    #[cfg_attr(not(feature = "logging"), test)]
     fn get_properties() {
-        init_test_logger();
         let test_data = "---\ntime: now\n---\nDATA";
         let mut test_file = NamedTempFile::new().unwrap();
         test_file.write_all(test_data.as_bytes()).unwrap();
@@ -262,9 +293,9 @@ mod tests {
         assert_eq!(properties["time"], "now");
     }
 
-    #[test]
+    #[cfg_attr(feature = "logging", test_log::test)]
+    #[cfg_attr(not(feature = "logging"), test)]
     fn from_read() {
-        init_test_logger();
         let test_data = "---\ntime: now\n---\nDATA";
         let mut test_file = NamedTempFile::new().unwrap();
         test_file.write_all(test_data.as_bytes()).unwrap();
@@ -281,10 +312,10 @@ mod tests {
         assert_eq!(properties["time"], "now");
     }
 
-    #[test]
+    #[cfg_attr(feature = "logging", test_log::test)]
+    #[cfg_attr(not(feature = "logging"), test)]
     #[should_panic]
     fn from_read_but_without_path() {
-        init_test_logger();
         let test_data = "---\ntime: now\n---\nDATA";
         let mut test_file = NamedTempFile::new().unwrap();
         test_file.write_all(test_data.as_bytes()).unwrap();

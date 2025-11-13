@@ -1,7 +1,7 @@
 //! In-memory representation of an Obsidian note file
 
 use super::{DefaultProperties, ObFile, ObFileRead};
-use crate::obfile::parser::{ResultParse, parse_obfile};
+use crate::obfile::parser::{self, ResultParse, parse_obfile};
 use serde::de::DeserializeOwned;
 use std::{
     borrow::Cow,
@@ -39,16 +39,40 @@ where
     properties: Option<T>,
 }
 
+/// Errors in [`ObFileInMemory`]
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("IO error")]
+    /// I/O operation failed (file reading, directory traversal, etc.)
+    #[error("IO error: {0}")]
     IO(#[from] std::io::Error),
 
-    #[error("Parsing error")]
-    Parse(#[from] super::parser::Error),
+    /// Invalid frontmatter format detected
+    ///
+    /// Occurs when:
+    /// - Frontmatter delimiters are incomplete (`---` missing)
+    /// - Content between delimiters is empty
+    ///
+    /// # Example
+    /// Parsing a file with malformed frontmatter:
+    /// ```text
+    /// ---
+    /// incomplete yaml
+    /// // Missing closing ---
+    /// ```
+    #[error("Invalid frontmatter format")]
+    InvalidFormat(#[from] parser::Error),
 
-    #[error("Serde error")]
-    Serde(#[from] serde_yml::Error),
+    /// YAML parsing error in frontmatter properties
+    ///
+    /// # Example
+    /// Parsing invalid YAML syntax:
+    /// ```text
+    /// ---
+    /// key: @invalid_value
+    /// ---
+    /// ```
+    #[error("YAML parsing error: {0}")]
+    Yaml(#[from] serde_yml::Error),
 }
 
 impl<T> ObFile for ObFileInMemory<T>
