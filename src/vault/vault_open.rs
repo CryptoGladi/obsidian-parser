@@ -41,14 +41,16 @@ fn is_md_file(path: impl AsRef<Path>) -> bool {
 }
 
 impl FilesBuilder {
-    pub fn new(options: VaultOptions) -> Self {
+    #[must_use]
+    pub const fn new(options: VaultOptions) -> Self {
         Self {
             options,
             include_hidden: false,
         }
     }
 
-    pub fn include_hidden(mut self, include_hidden: bool) -> Self {
+    #[must_use]
+    pub const fn include_hidden(mut self, include_hidden: bool) -> Self {
         self.include_hidden = include_hidden;
         self
     }
@@ -58,9 +60,10 @@ impl FilesBuilder {
             return false;
         }
 
-        return true;
+        true
     }
 
+    #[allow(clippy::should_implement_trait)]
     pub fn into_iter<F>(self) -> impl Iterator<Item = Result<F, F::Error>>
     where
         F: ObFileRead,
@@ -76,7 +79,7 @@ impl FilesBuilder {
             })
             .filter_map(Result::ok)
             .filter(|entry| entry.file_type().is_file())
-            .map(|entry| entry.into_path())
+            .map(DirEntry::into_path)
             .filter(|path| is_md_file(path));
 
         files.map(|path| F::from_file(path))
@@ -92,17 +95,18 @@ impl FilesBuilder {
         use rayon::prelude::*;
         let include_hidden = self.include_hidden;
 
-        let files = WalkDir::new(&self.options.path)
+        let paths: Vec<_> = WalkDir::new(&self.options.path)
             .into_iter()
             .filter_entry(move |entry| {
                 entry.depth() == 0 || Self::ignored_hidden_files(include_hidden, entry)
             })
             .filter_map(Result::ok)
             .filter(|entry| entry.file_type().is_file())
-            .map(|entry| entry.into_path())
-            .filter(|path| is_md_file(path));
+            .map(DirEntry::into_path)
+            .filter(|path| is_md_file(path))
+            .collect();
 
-        files.map(|path| F::from_file(path)).par_bridge()
+        paths.into_par_iter().map(|path| F::from_file(path))
     }
 }
 
@@ -112,8 +116,17 @@ where
     F: ObFile,
 {
     fn build_vault(self, options: VaultOptions) -> Vault<F> {
+        let notes: Vec<_> = self.collect();
+
+        #[cfg(feature = "logging")]
+        log::debug!(
+            "Building vault for {:?} with {} files",
+            options,
+            notes.len()
+        );
+
         Vault {
-            notes: self.collect::<Vec<F>>(),
+            notes,
             path: options.path,
         }
     }
@@ -133,8 +146,17 @@ where
     F: ObFile + Send,
 {
     fn build_vault(self, options: VaultOptions) -> Vault<F> {
+        let notes: Vec<_> = self.collect();
+
+        #[cfg(feature = "logging")]
+        log::debug!(
+            "Building vault for {:?} with {} files",
+            options,
+            notes.len()
+        );
+
         Vault {
-            notes: self.collect::<Vec<F>>(),
+            notes,
             path: options.path,
         }
     }

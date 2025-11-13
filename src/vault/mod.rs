@@ -137,14 +137,17 @@ impl<F> Vault<F>
 where
     F: ObFile,
 {
-    pub fn notes(&self) -> &Vec<F> {
+    #[must_use]
+    pub const fn notes(&self) -> &Vec<F> {
         &self.notes
     }
 
-    pub fn count_notes(&self) -> usize {
+    #[must_use]
+    pub const fn count_notes(&self) -> usize {
         self.notes().len()
     }
 
+    #[must_use]
     pub fn path(&self) -> &Path {
         &self.path
     }

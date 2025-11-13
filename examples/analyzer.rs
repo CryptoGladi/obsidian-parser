@@ -28,7 +28,8 @@ fn main() {
     let open_vault = Instant::now();
     let options = VaultOptions::new(&args.path);
     let files = FilesBuilder::new(options.clone())
-        .into_iter()
+        .include_hidden(false)
+        .into_par_iter()
         .filter_map(|file| match file {
             Ok(file) => Some(file),
             Err(error) => {
