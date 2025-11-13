@@ -1,6 +1,6 @@
 //! Impl trait [`ObFileRead`]
 
-use super::{Error, ObFile};
+use super::ObFile;
 use serde::de::DeserializeOwned;
 use std::{fs::File, io::Read, path::Path};
 
@@ -14,7 +14,7 @@ where
     ///
     /// # Errors
     /// - [`Error::Io`] for filesystem errors
-    fn from_read(
+    fn from_reader(
         read: &mut impl Read,
         path: Option<impl AsRef<Path>>,
     ) -> Result<Self, Self::Error> {
@@ -44,7 +44,7 @@ where
         log::trace!("Parse obsidian file from file: {}", path_buf.display());
 
         let mut file = File::open(&path_buf)?;
-        Self::from_read(&mut file, Some(path_buf))
+        Self::from_reader(&mut file, Some(path_buf))
     }
 
     /// Parses an Obsidian note from a string
@@ -60,4 +60,363 @@ where
         raw_text: impl AsRef<str>,
         path: Option<impl AsRef<Path>>,
     ) -> Result<Self, Self::Error>;
+}
+
+#[cfg(test)]
+pub(crate) mod tests {
+    use super::*;
+    use crate::{
+        obfile::{DefaultProperties, parser},
+        test_utils::{init_test_logger, is_error},
+    };
+    use std::io::{Cursor, Write};
+    use tempfile::NamedTempFile;
+
+    const TEST_DATA: &str = "---\n\
+topic: life\n\
+created: 2025-03-16\n\
+---\n\
+Test data\n\
+---\n\
+Two test data";
+
+    pub(crate) fn from_reader<T>() -> Result<(), T::Error>
+    where
+        T: ObFileRead<Properties = DefaultProperties>,
+        T::Error: From<std::io::Error>,
+    {
+        let mut reader = Cursor::new(TEST_DATA);
+        let file = T::from_reader(&mut reader, None::<&str>)?;
+        let properties = file.properties().unwrap().unwrap();
+
+        assert_eq!(properties["topic"], "life");
+        assert_eq!(properties["created"], "2025-03-16");
+        assert_eq!(file.content().unwrap(), "Test data\n---\nTwo test data");
+        Ok(())
+    }
+
+    pub(crate) fn from_string<T>() -> Result<(), T::Error>
+    where
+        T: ObFileRead<Properties = DefaultProperties>,
+        T::Error: From<std::io::Error>,
+    {
+        init_test_logger();
+        let file = T::from_string(TEST_DATA, None::<&str>)?;
+        let properties = file.properties().unwrap().unwrap();
+
+        assert_eq!(properties["topic"], "life");
+        assert_eq!(properties["created"], "2025-03-16");
+        assert_eq!(file.content().unwrap(), "Test data\n---\nTwo test data");
+        Ok(())
+    }
+
+    pub(crate) fn from_string_note_name<T>() -> Result<(), T::Error>
+    where
+        T: ObFileRead<Properties = DefaultProperties>,
+        T::Error: From<std::io::Error>,
+    {
+        init_test_logger();
+        let file1 = T::from_string(TEST_DATA, None::<&str>)?;
+        let file2 = T::from_string(TEST_DATA, Some("Super node.md"))?;
+
+        assert_eq!(file1.note_name(), None);
+        assert_eq!(file2.note_name(), Some("Super node".to_string()));
+        Ok(())
+    }
+
+    pub(crate) fn from_string_without_properties<T>() -> Result<(), T::Error>
+    where
+        T: ObFileRead<Properties = DefaultProperties>,
+        T::Error: From<std::io::Error>,
+    {
+        init_test_logger();
+        let test_data = "TEST_DATA";
+        let file = T::from_string(test_data, None::<&str>)?;
+
+        assert_eq!(file.properties().unwrap(), None);
+        assert_eq!(file.content().unwrap(), test_data);
+        Ok(())
+    }
+
+    pub(crate) fn from_string_with_invalid_yaml<T>() -> Result<(), T::Error>
+    where
+        T: ObFileRead<Properties = DefaultProperties>,
+        T::Error: From<std::io::Error> + From<serde_yml::Error> + 'static,
+    {
+        init_test_logger();
+        let broken_data = "---\n\
+    asdfv:--fs\n\
+    sfsf\n\
+    ---\n\
+    TestData";
+
+        let result = T::from_string(broken_data, None::<&str>);
+        let error = result.err().unwrap();
+
+        assert!(is_error::<serde_yml::Error>(error));
+        Ok(())
+    }
+
+    pub(crate) fn from_string_invalid_format<T>() -> Result<(), T::Error>
+    where
+        T: ObFileRead<Properties = DefaultProperties>,
+        T::Error: From<std::io::Error> + From<parser::Error>,
+    {
+        init_test_logger();
+        let broken_data = "---\n";
+
+        let result = T::from_string(broken_data, None::<&str>);
+        let error = result.err().unwrap();
+
+        assert!(is_error::<parser::Error>(error));
+        Ok(())
+    }
+
+    pub(crate) fn from_string_with_unicode<T>() -> Result<(), T::Error>
+    where
+        T: ObFileRead<Properties = DefaultProperties>,
+        T::Error: From<std::io::Error>,
+    {
+        init_test_logger();
+        let data = "---\ndata: 💩\n---\nSuper data 💩💩💩";
+        let file = T::from_string(data, None::<&str>)?;
+        let properties = file.properties().unwrap().unwrap();
+
+        assert_eq!(properties["data"], "💩");
+        assert_eq!(file.content().unwrap(), "Super data 💩💩💩");
+        Ok(())
+    }
+
+    pub(crate) fn from_string_space_with_properties<T>() -> Result<(), T::Error>
+    where
+        T: ObFileRead<Properties = DefaultProperties>,
+        T::Error: From<std::io::Error>,
+    {
+        init_test_logger();
+        let data = "  ---\ntest: test-data\n---\n";
+        let file = T::from_string(data, None::<&str>)?;
+        let properties = file.properties().unwrap();
+
+        assert_eq!(file.content().unwrap(), data);
+        assert_eq!(properties, None);
+        Ok(())
+    }
+
+    pub(crate) fn from_file<T>() -> Result<(), T::Error>
+    where
+        T: ObFileRead<Properties = DefaultProperties>,
+        T::Error: From<std::io::Error>,
+    {
+        init_test_logger();
+        let mut temp_file = NamedTempFile::new().unwrap();
+        temp_file.write_all(b"TEST_DATA").unwrap();
+
+        let file = T::from_file(temp_file.path()).unwrap();
+        assert_eq!(file.content().unwrap(), "TEST_DATA");
+        assert_eq!(file.path().unwrap(), temp_file.path());
+        assert_eq!(file.properties().unwrap(), None);
+        Ok(())
+    }
+
+    pub(crate) fn from_file_note_name<T>() -> Result<(), T::Error>
+    where
+        T: ObFileRead<Properties = DefaultProperties>,
+        T::Error: From<std::io::Error>,
+    {
+        init_test_logger();
+        let mut temp_file = NamedTempFile::new().unwrap();
+        temp_file.write_all(b"TEST_DATA").unwrap();
+
+        let name_temp_file = temp_file
+            .path()
+            .file_stem()
+            .unwrap()
+            .to_string_lossy()
+            .to_string();
+
+        let file = T::from_file(temp_file.path()).unwrap();
+
+        assert_eq!(file.note_name(), Some(name_temp_file));
+        Ok(())
+    }
+
+    pub(crate) fn from_file_without_properties<T>() -> Result<(), T::Error>
+    where
+        T: ObFileRead<Properties = DefaultProperties>,
+        T::Error: From<std::io::Error>,
+    {
+        init_test_logger();
+        let test_data = "TEST_DATA";
+        let mut test_file = NamedTempFile::new().unwrap();
+        test_file.write_all(test_data.as_bytes()).unwrap();
+
+        let file = T::from_file(test_file.path())?;
+
+        assert_eq!(file.properties().unwrap(), None);
+        assert_eq!(file.content().unwrap(), test_data);
+        Ok(())
+    }
+
+    pub(crate) fn from_file_with_invalid_yaml<T>() -> Result<(), T::Error>
+    where
+        T: ObFileRead<Properties = DefaultProperties>,
+        T::Error: From<std::io::Error> + From<serde_yml::Error>,
+    {
+        init_test_logger();
+        let broken_data = "---\n\
+    asdfv:--fs\n\
+    sfsf\n\
+    ---\n\
+    TestData";
+
+        let mut test_file = NamedTempFile::new().unwrap();
+        test_file.write_all(broken_data.as_bytes()).unwrap();
+
+        let result = T::from_file(test_file.path());
+        let error = result.err().unwrap();
+
+        assert!(is_error::<serde_yml::Error>(error));
+        Ok(())
+    }
+
+    pub(crate) fn from_file_invalid_format<T>() -> Result<(), T::Error>
+    where
+        T: ObFileRead<Properties = DefaultProperties>,
+        T::Error: From<std::io::Error> + From<parser::Error>,
+    {
+        init_test_logger();
+        let broken_data = "---\n";
+        let mut test_file = NamedTempFile::new().unwrap();
+        test_file.write_all(broken_data.as_bytes()).unwrap();
+
+        let result = T::from_file(test_file.path());
+        let error = result.err().unwrap();
+
+        assert!(is_error::<parser::Error>(error));
+        Ok(())
+    }
+
+    pub(crate) fn from_file_with_unicode<T>() -> Result<(), T::Error>
+    where
+        T: ObFileRead<Properties = DefaultProperties>,
+        T::Error: From<std::io::Error>,
+    {
+        init_test_logger();
+        let data = "---\ndata: 💩\n---\nSuper data 💩💩💩";
+        let mut test_file = NamedTempFile::new().unwrap();
+        test_file.write_all(data.as_bytes()).unwrap();
+
+        let file = T::from_file(test_file.path())?;
+        let properties = file.properties().unwrap().unwrap();
+
+        assert_eq!(properties["data"], "💩");
+        assert_eq!(file.content().unwrap(), "Super data 💩💩💩");
+        Ok(())
+    }
+
+    pub(crate) fn from_file_space_with_properties<T>() -> Result<(), T::Error>
+    where
+        T: ObFileRead<Properties = DefaultProperties>,
+        T::Error: From<std::io::Error>,
+    {
+        init_test_logger();
+        let data = "  ---\ntest: test-data\n---\n";
+        let mut test_file = NamedTempFile::new().unwrap();
+        test_file.write_all(data.as_bytes()).unwrap();
+
+        let file = T::from_string(data, None::<&str>)?;
+
+        assert_eq!(file.content().unwrap(), data);
+        assert_eq!(file.properties().unwrap(), None);
+        Ok(())
+    }
+
+    macro_rules! impl_all_tests_from_reader {
+        ($impl_obfile:path) => {
+            #[allow(unused_imports)]
+            use $crate::obfile::obfile_read::tests::*;
+
+            impl_test_for_obfile!(impl_from_reader, from_reader, $impl_obfile);
+        };
+    }
+
+    macro_rules! impl_all_tests_from_string {
+        ($impl_obfile:path) => {
+            #[allow(unused_imports)]
+            use $crate::obfile::obfile_read::tests::*;
+
+            impl_test_for_obfile!(impl_from_string, from_string, $impl_obfile);
+
+            impl_test_for_obfile!(
+                impl_from_string_note_name,
+                from_string_note_name,
+                $impl_obfile
+            );
+            impl_test_for_obfile!(
+                impl_from_string_without_properties,
+                from_string_without_properties,
+                $impl_obfile
+            );
+            impl_test_for_obfile!(
+                impl_from_string_with_invalid_yaml,
+                from_string_with_invalid_yaml,
+                $impl_obfile
+            );
+            impl_test_for_obfile!(
+                impl_from_string_invalid_format,
+                from_string_invalid_format,
+                $impl_obfile
+            );
+            impl_test_for_obfile!(
+                impl_from_string_with_unicode,
+                from_string_with_unicode,
+                $impl_obfile
+            );
+            impl_test_for_obfile!(
+                impl_from_string_space_with_properties,
+                from_string_space_with_properties,
+                $impl_obfile
+            );
+        };
+    }
+
+    macro_rules! impl_all_tests_from_file {
+        ($impl_obfile:path) => {
+            #[allow(unused_imports)]
+            use $crate::obfile::impl_tests::*;
+
+            impl_test_for_obfile!(impl_from_file, from_file, $impl_obfile);
+            impl_test_for_obfile!(impl_from_file_note_name, from_file_note_name, $impl_obfile);
+
+            impl_test_for_obfile!(
+                impl_from_file_without_properties,
+                from_file_without_properties,
+                $impl_obfile
+            );
+            impl_test_for_obfile!(
+                impl_from_file_with_invalid_yaml,
+                from_file_with_invalid_yaml,
+                $impl_obfile
+            );
+            impl_test_for_obfile!(
+                impl_from_file_invalid_format,
+                from_file_invalid_format,
+                $impl_obfile
+            );
+            impl_test_for_obfile!(
+                impl_from_file_with_unicode,
+                from_file_with_unicode,
+                $impl_obfile
+            );
+            impl_test_for_obfile!(
+                impl_from_file_space_with_properties,
+                from_file_space_with_properties,
+                $impl_obfile
+            );
+        };
+    }
+
+    pub(crate) use impl_all_tests_from_file;
+    pub(crate) use impl_all_tests_from_reader;
+    pub(crate) use impl_all_tests_from_string;
 }

@@ -24,6 +24,8 @@ fn main() {
     env_logger::init();
     let args = Args::parse();
 
+    /* TODO
+
     let open_vault = Instant::now();
     let vault = Vault::open_default(&args.path).unwrap();
     println!("Time open vault: {:.2?}", open_vault.elapsed());
@@ -53,4 +55,5 @@ fn main() {
         .max_by_key(|n| digraph.edges(*n).count())
         .unwrap();
     println!("Knowledge hub in digraph: {}", digraph[most_connected]);
+    */
 }

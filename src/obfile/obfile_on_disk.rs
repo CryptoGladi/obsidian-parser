@@ -1,13 +1,14 @@
 //! On-disk representation of an Obsidian note file
 
-use crate::error::Error;
-use crate::obfile::{DefaultProperties, ObFile, ObFileRead, ResultParse, parse_obfile};
+use crate::obfile::parser::{ResultParse, parse_obfile};
+use crate::obfile::{DefaultProperties, ObFile, ObFileRead};
 use serde::de::DeserializeOwned;
 use std::borrow::Cow;
 use std::io::Read;
 use std::marker::PhantomData;
 use std::path::Path;
 use std::path::PathBuf;
+use thiserror::Error;
 
 /// On-disk representation of an Obsidian note file
 ///
@@ -45,11 +46,27 @@ where
     phantom: PhantomData<T>,
 }
 
+#[derive(Debug, Error)]
+pub enum Error {
+    #[error("IO error")]
+    IO(#[from] std::io::Error),
+
+    #[error("Parsing error")]
+    Parse(#[from] super::parser::Error),
+
+    #[error("Serde error")]
+    Serde(#[from] serde_yml::Error),
+
+    #[error("Is `{0}` not a file")]
+    IsNotFile(PathBuf),
+}
+
 impl<T> ObFile for ObFileOnDisk<T>
 where
     T: DeserializeOwned + Clone,
 {
     type Properties = T;
+    type Error = self::Error;
 
     /// Parses YAML frontmatter directly from disk
     ///
@@ -141,7 +158,7 @@ where
 {
     /// Creates instance from [`std::io::Read`]
     #[inline]
-    fn from_read(_read: &mut impl Read, path: Option<impl AsRef<Path>>) -> Result<Self, Error> {
+    fn from_reader(_read: &mut impl Read, path: Option<impl AsRef<Path>>) -> Result<Self, Error> {
         Self::from_string("", path)
     }
 
@@ -177,9 +194,9 @@ where
 mod tests {
     use super::*;
     use crate::obfile::ObFileDefault;
-    use crate::obfile::impl_tests::{
-        from_file, from_file_with_unicode, impl_all_tests_flush, impl_test_for_obfile,
-    };
+    use crate::obfile::impl_tests::impl_test_for_obfile;
+    use crate::obfile::obfile_read::tests::{from_file, from_file_with_unicode};
+    use crate::obfile::obfile_write::tests::impl_all_tests_flush;
     use crate::test_utils::init_test_logger;
     use std::fs::File;
     use std::io::Write;

@@ -1,13 +1,12 @@
 //! In-memory representation of an Obsidian note file
 
+use super::{DefaultProperties, ObFile, ObFileRead};
+use crate::obfile::parser::{ResultParse, parse_obfile};
+use serde::de::DeserializeOwned;
 use std::{
     borrow::Cow,
     path::{Path, PathBuf},
 };
-
-use super::{DefaultProperties, ObFile, ObFileRead, parse_obfile};
-use crate::obfile::ResultParse;
-use serde::de::DeserializeOwned;
 use thiserror::Error;
 
 /// In-memory representation of an Obsidian note file
@@ -42,8 +41,14 @@ where
 
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("32")]
+    #[error("IO error")]
     IO(#[from] std::io::Error),
+
+    #[error("Parsing error")]
+    Parse(#[from] super::parser::Error),
+
+    #[error("Serde error")]
+    Serde(#[from] serde_yml::Error),
 }
 
 impl<T> ObFile for ObFileInMemory<T>
@@ -112,7 +117,7 @@ where
     fn from_string(
         raw_text: impl AsRef<str>,
         path: Option<impl AsRef<Path>>,
-    ) -> Result<Self, Error> {
+    ) -> Result<Self, Self::Error> {
         let path_buf = path.map(|x| x.as_ref().to_path_buf());
         let raw_text = raw_text.as_ref();
 
@@ -156,10 +161,14 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::obfile::impl_tests::{
-        impl_all_tests_flush, impl_all_tests_from_file, impl_all_tests_from_string,
+    use crate::obfile::{
+        obfile_read::tests::{
+            impl_all_tests_from_file, impl_all_tests_from_reader, impl_all_tests_from_string,
+        },
+        obfile_write::tests::impl_all_tests_flush,
     };
 
+    impl_all_tests_from_reader!(ObFileInMemory);
     impl_all_tests_from_string!(ObFileInMemory);
     impl_all_tests_from_file!(ObFileInMemory);
     impl_all_tests_flush!(ObFileInMemory);

@@ -62,10 +62,11 @@ impl VaultBuilder {
         return true;
     }
 
-    pub fn into_iter<F>(self) -> impl Iterator<Item = Result<F, Error>>
+    pub fn into_iter<F>(self) -> impl Iterator<Item = Result<F, F::Error>>
     where
         F: ObFileRead,
         F::Properties: DeserializeOwned,
+        F::Error: From<std::io::Error>,
     {
         let include_hidden = self.include_hidden;
 
@@ -100,171 +101,20 @@ where
 
 impl<F> Vault<F>
 where
+    F: ObFileRead,
     F::Properties: DeserializeOwned,
-    F: ObFileRead + Send,
+    F::Error: From<std::io::Error>,
 {
-    /// Parsing files by rayon with ignore
-    #[cfg(feature = "rayon")]
-    fn parse_files_with_ignore<L>(files: &[PathBuf], f: L) -> Vec<F>
-    where
-        L: Fn(&PathBuf) -> Result<F, Error> + Sync + Send,
-    {
-        use rayon::prelude::*;
+    pub fn open(path: impl AsRef<Path>) -> Self {
+        let path = path.as_ref().to_path_buf();
 
-        files
-            .into_par_iter()
-            .filter_map(|file| f(file).ok())
-            .collect()
-    }
-
-    /// Parsing files withut rayon
-    #[cfg(not(feature = "rayon"))]
-    fn parse_files_with_ignore<L>(files: &[PathBuf], f: L) -> Vec<F>
-    where
-        L: Fn(&PathBuf) -> Result<F, Error>,
-    {
-        files.into_iter().filter_map(|file| f(file).ok()).collect()
-    }
-
-    /// Parsing files by rayon
-    #[cfg(feature = "rayon")]
-    fn parse_files<L>(files: &[PathBuf], f: L) -> Result<Vec<F>, Error>
-    where
-        L: Fn(&PathBuf) -> Result<F, Error> + Sync + Send,
-    {
-        use rayon::prelude::*;
-
-        files
-            .into_par_iter()
-            .map(f)
-            .try_fold(
-                || Vec::new(),
-                |mut acc, result| {
-                    acc.push(result?);
-                    Ok(acc)
-                },
-            )
-            .try_reduce(
-                || Vec::new(),
-                |mut a, mut b| {
-                    a.append(&mut b);
-                    Ok(a)
-                },
-            )
-    }
-
-    /// Parsing files withut rayon
-    #[cfg(not(feature = "rayon"))]
-    fn parse_files<L>(files: &[PathBuf], f: L) -> Result<Vec<F>, Error>
-    where
-        L: Fn(&PathBuf) -> Result<F, Error> + Sync + Send,
-    {
-        files
+        let files = VaultBuilder::new(&path)
+            .include_hidden(false)
             .into_iter()
-            .map(|file| f(file))
-            .try_fold(Vec::new(), |mut acc, result| {
-                acc.push(result?);
-                Ok::<Vec<F>, Error>(acc)
-            })
-    }
+            .filter_map(Result::ok)
+            .build_vault();
 
-    /// Opens and parses an Obsidian vault
-    ///
-    /// Recursively scans the directory for Markdown files (.md) and parses them.
-    /// Uses [`ObFileOnDisk`] by default which is more memory efficient than [`ObFileInMemory`](crate::prelude::ObFileInMemory).
-    ///
-    /// # Arguments
-    /// * `path` - Path to the vault directory
-    ///
-    /// # Example
-    /// ```no_run
-    /// use obsidian_parser::prelude::*;
-    ///
-    /// // Open a vault using default properties (HashMap)
-    /// let vault = Vault::open_default("/path/to/vault").unwrap();
-    /// ```
-    /// # Errors
-    /// Returns `Error` if:
-    /// - Path doesn't exist or isn't a directory
-    /// - File parse is not correct
-    ///
-    /// # Memory Considerations
-    /// For vaults with 1000+ notes, prefer [`ObFileOnDisk`] (default) over [`ObFileInMemory`](crate::prelude::ObFileInMemory) as it:
-    /// 1. Uses 90%+ less memory upfront
-    /// 2. Only loads file content when accessed
-    /// 3. Scales better for large knowledge bases
-    pub fn open<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
-        let path_buf = path.as_ref().to_path_buf();
-
-        #[cfg(feature = "logging")]
-        log::debug!("Opening vault at: {}", path_buf.display());
-
-        check_vault(&path)?;
-        let files_for_parse: Vec<_> = get_files_for_parse(&path);
-
-        #[cfg(feature = "logging")]
-        log::debug!("Found {} markdown files to parse", files_for_parse.len());
-
-        #[allow(unused_variables)]
-        #[allow(clippy::manual_ok_err)]
-        let files = Self::parse_files(&files_for_parse, |file| F::from_file(file))?;
-
-        #[cfg(feature = "logging")]
-        log::info!("Parsed {} files", files.len());
-
-        Ok(Self {
-            files,
-            path: path_buf,
-        })
-    }
-
-    /// Opens and parses an Obsidian vault but **ignored errors**
-    ///
-    /// Recursively scans the directory for Markdown files (.md) and parses them.
-    /// Uses [`ObFileOnDisk`] by default which is more memory efficient than [`ObFileInMemory`](crate::prelude::ObFileInMemory).
-    ///
-    /// # Arguments
-    /// * `path` - Path to the vault directory
-    ///
-    /// # Example
-    /// ```no_run
-    /// use obsidian_parser::prelude::*;
-    ///
-    /// // Open a vault using default properties (HashMap)
-    /// let vault = Vault::open_ignore_default("/path/to/vault").unwrap();
-    /// ```
-    /// # Errors
-    /// Returns `Error` if:
-    /// - Path doesn't exist or isn't a directory
-    ///
-    /// # Memory Considerations
-    /// For vaults with 1000+ notes, prefer [`ObFileOnDisk`] (default) over [`ObFileInMemory`](crate::prelude::ObFileInMemory) as it:
-    /// 1. Uses 90%+ less memory upfront
-    /// 2. Only loads file content when accessed
-    /// 3. Scales better for large knowledge bases
-    pub fn open_ignore<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
-        let path_buf = path.as_ref().to_path_buf();
-
-        #[cfg(feature = "logging")]
-        log::debug!("Opening ignored vault at: {}", path_buf.display());
-
-        check_vault(&path)?;
-        let files_for_parse: Vec<_> = get_files_for_parse(&path);
-
-        #[cfg(feature = "logging")]
-        log::debug!("Found {} markdown files to parse", files_for_parse.len());
-
-        #[allow(unused_variables)]
-        #[allow(clippy::manual_ok_err)]
-        let files = Self::parse_files_with_ignore(&files_for_parse, |file| F::from_file(file));
-
-        #[cfg(feature = "logging")]
-        log::info!("Parsed {} files", files.len());
-
-        Ok(Self {
-            files,
-            path: path_buf,
-        })
+        Self { files, path }
     }
 }
 

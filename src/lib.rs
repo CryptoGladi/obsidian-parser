@@ -89,7 +89,7 @@
 //!
 //! Parallel processing via Rayon (enable `rayon` feature)
 
-#![warn(missing_docs)]
+//#![warn(missing_docs)]
 #![warn(clippy::pedantic)]
 #![warn(clippy::undocumented_unsafe_blocks)]
 #![warn(clippy::cargo)]

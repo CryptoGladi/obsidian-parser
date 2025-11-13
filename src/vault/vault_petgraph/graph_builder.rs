@@ -1,8 +1,6 @@
 use super::index::Index;
-use crate::{
-    obfile::{ObFile, parse_links},
-    vault::Vault,
-};
+use crate::obfile::parser::parse_links;
+use crate::{obfile::ObFile, vault::Vault};
 use petgraph::{EdgeType, Graph};
 use std::path::Path;
 
