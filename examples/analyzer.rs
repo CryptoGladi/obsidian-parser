@@ -1,6 +1,7 @@
 use clap::Parser;
-use obsidian_parser::prelude::*;
+use obsidian_parser::{prelude::*, vault::vault_open::FilesBuilder};
 use petgraph::algo::connected_components;
+use rayon::prelude::*;
 use std::{path::PathBuf, time::Instant};
 
 fn parse_path(s: &str) -> Result<PathBuf, String> {
@@ -24,11 +25,27 @@ fn main() {
     env_logger::init();
     let args = Args::parse();
 
+    let open_vault = Instant::now();
+    let options = VaultOptions::new(&args.path);
+    let files = FilesBuilder::new(options.clone())
+        .into_iter()
+        .filter_map(|file| match file {
+            Ok(file) => Some(file),
+            Err(error) => {
+                eprintln!("Parsed error: {}", error);
+                None
+            }
+        });
+
+    let vault: VaultOnDisk = files.build_vault(options);
+    println!("Time open vault: {:.2?}", open_vault.elapsed());
+    println!("Count notes: {}", vault.count_notes());
+
+    println!("Check unique note name: {}", vault.check_unique_note_name());
+
     /* TODO
 
-    let open_vault = Instant::now();
     let vault = Vault::open_default(&args.path).unwrap();
-    println!("Time open vault: {:.2?}", open_vault.elapsed());
 
     let get_graph = Instant::now();
     let ungraph = vault.get_ungraph();

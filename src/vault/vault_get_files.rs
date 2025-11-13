@@ -29,21 +29,18 @@ pub fn get_files_for_parse(path: impl AsRef<Path>) -> Vec<PathBuf> {
 
 #[cfg(test)]
 mod tests {
-    use crate::test_utils::init_test_logger;
     use crate::vault::vault_test::create_test_vault;
 
-    #[test]
+    #[cfg_attr(feature = "logging", test_log::test)]
+    #[cfg_attr(not(feature = "logging"), test)]
     fn is_hidden() {
-        init_test_logger();
-
         assert!(super::is_hidden(".test"));
         assert!(!super::is_hidden("test"));
     }
 
-    #[test]
+    #[cfg_attr(feature = "logging", test_log::test)]
+    #[cfg_attr(not(feature = "logging"), test)]
     fn is_md_file() {
-        init_test_logger();
-
         assert!(super::is_md_file("test.md"));
         assert!(super::is_md_file(".test.md"));
 
@@ -51,10 +48,9 @@ mod tests {
         assert!(!super::is_md_file("test"));
     }
 
-    #[test]
+    #[cfg_attr(feature = "logging", test_log::test)]
+    #[cfg_attr(not(feature = "logging"), test)]
     fn get_files_for_parse() {
-        init_test_logger();
-
         let (path, files) = create_test_vault().unwrap();
 
         assert_eq!(super::get_files_for_parse(path.path()).len(), files.len());

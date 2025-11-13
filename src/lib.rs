@@ -103,10 +103,9 @@
 #![warn(clippy::as_conversions)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
-pub mod error;
 pub mod obfile;
 pub mod prelude;
-//pub mod vault;
+pub mod vault;
 
 #[cfg(test)]
 pub(crate) mod test_utils;

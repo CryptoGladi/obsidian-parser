@@ -158,12 +158,10 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::init_test_logger;
     use crate::vault::vault_test::create_test_vault;
 
     #[test]
     fn get_digraph() {
-        init_test_logger();
         let (vault_path, files) = create_test_vault().unwrap();
         let vault = Vault::open_default(vault_path.path()).unwrap();
 
@@ -175,7 +173,6 @@ mod tests {
 
     #[test]
     fn get_ungraph() {
-        init_test_logger();
         let (vault_path, files) = create_test_vault().unwrap();
         let vault = Vault::open_default(vault_path.path()).unwrap();
 

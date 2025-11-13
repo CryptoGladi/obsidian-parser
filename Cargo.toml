@@ -27,6 +27,7 @@ env_logger = "0.11"
 rand = "0.9"
 tempfile = "3.20"
 test-log = "0.2.18"
+rayon = "1"
 
 [features]
 default = []

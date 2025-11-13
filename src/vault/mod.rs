@@ -89,22 +89,29 @@
 //! let vault: VaultInMemory<NoteProperties> = Vault::open("/path/to/vault").unwrap();
 //! ```
 
+pub mod error;
+pub mod vault_duplicates;
 pub mod vault_open;
-#[cfg(feature = "petgraph")]
-#[cfg_attr(docsrs, doc(cfg(feature = "petgraph")))]
-pub mod vault_petgraph;
+//#[cfg(feature = "petgraph")]
+//#[cfg_attr(docsrs, doc(cfg(feature = "petgraph")))]
+//pub mod vault_petgraph;
 
-#[cfg(test)]
-mod vault_test;
+//#[cfg(test)]
+//mod vault_test;
 
-pub(crate) mod vault_get_files;
+//pub(crate) mod vault_get_files;
 
 use crate::obfile::DefaultProperties;
 use crate::obfile::ObFile;
 use crate::prelude::ObFileInMemory;
-use crate::{error::Error, prelude::ObFileOnDisk};
-use std::collections::HashSet;
-use std::path::PathBuf;
+use crate::prelude::ObFileOnDisk;
+use std::path::{Path, PathBuf};
+
+/// Vault, but used [`ObFileOnDisk`]
+pub type VaultOnDisk<T = DefaultProperties> = Vault<ObFileOnDisk<T>>;
+
+/// Vault, but used [`ObFileInMemory`]
+pub type VaultInMemory<T = DefaultProperties> = Vault<ObFileInMemory<T>>;
 
 /// Represents an entire Obsidian vault
 ///
@@ -115,95 +122,47 @@ use std::path::PathBuf;
 /// - `T`: Type for frontmatter properties
 /// - `F`: File representation type
 #[derive(Debug, Default, PartialEq, Eq, Clone)]
-pub struct Vault<F = ObFileOnDisk<DefaultProperties>>
+pub struct Vault<F>
 where
     F: ObFile,
 {
-    /// All files in the vault
-    pub files: Vec<F>,
+    /// All notes in the vault
+    notes: Vec<F>,
 
     /// Path to vault root directory
-    pub path: PathBuf,
+    path: PathBuf,
 }
-
-/// Vault, but used [`ObFileOnDisk`]
-pub type VaultOnDisk<T> = Vault<ObFileOnDisk<T>>;
-
-/// Vault, but used [`ObFileInMemory`]
-pub type VaultInMemory<T> = Vault<ObFileInMemory<T>>;
 
 impl<F> Vault<F>
 where
     F: ObFile,
 {
-    /// Returns duplicated note name
-    ///
-    /// # Performance
-    /// Operates in O(n) time for large vaults
-    ///
-    /// # Other
-    /// See [`check_unique_note_name`](Vault::check_unique_note_name)
-    #[must_use]
-    pub fn get_duplicates_notes(&self) -> Vec<String> {
-        #[cfg(feature = "logging")]
-        log::debug!(
-            "Get duplicates notes in {} ({} files)",
-            self.path.display(),
-            self.files.len()
-        );
-
-        let mut seens_notes = HashSet::new();
-        let mut duplicated_notes = Vec::new();
-
-        #[allow(
-            clippy::missing_panics_doc,
-            clippy::unwrap_used,
-            reason = "In any case, we will have a path to the files"
-        )]
-        for name_note in self.files.iter().map(|x| x.note_name().unwrap()) {
-            if !seens_notes.insert(name_note.clone()) {
-                #[cfg(feature = "logging")]
-                log::trace!("Found duplicate: {name_note}");
-
-                duplicated_notes.push(name_note);
-            }
-        }
-
-        #[cfg(feature = "logging")]
-        if !duplicated_notes.is_empty() {
-            log::warn!("Found {} duplicate filenames", duplicated_notes.len());
-        }
-
-        duplicated_notes
+    pub fn notes(&self) -> &Vec<F> {
+        &self.notes
     }
 
-    /// Checks if all note filenames in the vault are unique
-    ///
-    /// # Returns
-    /// `true` if all filenames are unique, `false` otherwise
-    ///
-    /// # Performance
-    /// Operates in O(n) time for large vaults
-    ///
-    /// # Other
-    /// See [`get_duplicates_notes`](Vault::get_duplicates_notes)
-    #[must_use]
-    pub fn check_unique_note_name(&self) -> bool {
-        self.get_duplicates_notes().is_empty()
+    pub fn count_notes(&self) -> usize {
+        self.notes().len()
+    }
+
+    pub fn path(&self) -> &Path {
+        &self.path
     }
 }
 
+/*
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{test_utils::init_test_logger, vault::vault_test::create_test_vault};
+    use crate::vault::vault_test::create_test_vault;
 
-    #[test]
+    #[cfg_attr(feature = "logging", test_log::test)]
+    #[cfg_attr(not(feature = "logging"), test)]
     fn check_unique_note_name() {
-        init_test_logger();
         let (vault_path, _) = create_test_vault().unwrap();
 
         let vault = Vault::open_default(vault_path.path()).unwrap();
         assert!(!vault.check_unique_note_name());
     }
 }
+*/

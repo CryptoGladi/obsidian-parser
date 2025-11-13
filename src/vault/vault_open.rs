@@ -1,31 +1,30 @@
 //! Module for open impl [`Vault`]
 
-use super::{DefaultProperties, Error, Vault};
+use super::Vault;
 use crate::{
     obfile::{ObFile, ObFileRead},
     prelude::ObFileOnDisk,
-    vault::vault_get_files::get_files_for_parse,
 };
 use serde::de::DeserializeOwned;
 use std::path::{Path, PathBuf};
 use walkdir::{DirEntry, WalkDir};
 
-fn check_vault(path: impl AsRef<Path>) -> Result<(), Error> {
-    let path_buf = path.as_ref().to_path_buf();
-
-    if !path_buf.is_dir() {
-        #[cfg(feature = "logging")]
-        log::error!("Path is not directory: {}", path_buf.display());
-
-        return Err(Error::IsNotDir(path_buf));
-    }
-
-    Ok(())
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct VaultOptions {
+    path: PathBuf,
 }
 
-#[derive(Debug)]
-pub struct VaultBuilder {
-    path: PathBuf,
+impl VaultOptions {
+    pub fn new(path: impl AsRef<Path>) -> Self {
+        Self {
+            path: path.as_ref().to_path_buf(),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct FilesBuilder {
+    options: VaultOptions,
     include_hidden: bool,
 }
 
@@ -41,10 +40,10 @@ fn is_md_file(path: impl AsRef<Path>) -> bool {
         .is_some_and(|p| p.eq_ignore_ascii_case("md"))
 }
 
-impl VaultBuilder {
-    pub fn new(path: impl AsRef<Path>) -> Self {
+impl FilesBuilder {
+    pub fn new(options: VaultOptions) -> Self {
         Self {
-            path: path.as_ref().to_path_buf(),
+            options,
             include_hidden: false,
         }
     }
@@ -70,9 +69,11 @@ impl VaultBuilder {
     {
         let include_hidden = self.include_hidden;
 
-        let files = WalkDir::new(self.path)
+        let files = WalkDir::new(&self.options.path)
             .into_iter()
-            .filter_entry(move |e| e.depth() == 0 || Self::ignored_hidden_files(include_hidden, e))
+            .filter_entry(move |entry| {
+                entry.depth() == 0 || Self::ignored_hidden_files(include_hidden, entry)
+            })
             .filter_map(Result::ok)
             .filter(|entry| entry.file_type().is_file())
             .map(|entry| entry.into_path())
@@ -80,25 +81,74 @@ impl VaultBuilder {
 
         files.map(|path| F::from_file(path))
     }
+
+    #[cfg(feature = "rayon")]
+    pub fn into_par_iter<F>(self) -> impl rayon::iter::ParallelIterator<Item = Result<F, F::Error>>
+    where
+        F: ObFileRead + Send,
+        F::Properties: DeserializeOwned,
+        F::Error: From<std::io::Error> + Send,
+    {
+        use rayon::prelude::*;
+        let include_hidden = self.include_hidden;
+
+        let files = WalkDir::new(&self.options.path)
+            .into_iter()
+            .filter_entry(move |entry| {
+                entry.depth() == 0 || Self::ignored_hidden_files(include_hidden, entry)
+            })
+            .filter_map(Result::ok)
+            .filter(|entry| entry.file_type().is_file())
+            .map(|entry| entry.into_path())
+            .filter(|path| is_md_file(path));
+
+        files.map(|path| F::from_file(path)).par_bridge()
+    }
 }
 
-pub trait IteratorVaultBulder<F>: Iterator<Item = F>
+pub trait IteratorFilesBuilder<F = ObFileOnDisk>: Iterator<Item = F>
 where
     Self: Sized,
     F: ObFile,
 {
-    fn build_vault(self) -> Vec<F> {
-        Vec::from_iter(self)
+    fn build_vault(self, options: VaultOptions) -> Vault<F> {
+        Vault {
+            notes: self.collect::<Vec<F>>(),
+            path: options.path,
+        }
     }
 }
 
-impl<F, I> IteratorVaultBulder<F> for I
+impl<F, I> IteratorFilesBuilder<F> for I
 where
     F: ObFile,
     I: Iterator<Item = F>,
 {
 }
 
+#[cfg(feature = "rayon")]
+pub trait ParallelIteratorFilesBuilder<F = ObFileOnDisk>:
+    rayon::iter::ParallelIterator<Item = F>
+where
+    F: ObFile + Send,
+{
+    fn build_vault(self, options: VaultOptions) -> Vault<F> {
+        Vault {
+            notes: self.collect::<Vec<F>>(),
+            path: options.path,
+        }
+    }
+}
+
+#[cfg(feature = "rayon")]
+impl<F, I> ParallelIteratorFilesBuilder<F> for I
+where
+    F: ObFile + Send,
+    I: rayon::iter::ParallelIterator<Item = F>,
+{
+}
+
+/*
 impl<F> Vault<F>
 where
     F: ObFileRead,
@@ -167,7 +217,8 @@ mod tests {
     use std::fs::File;
     use std::io::Write;
 
-    #[test]
+    #[cfg_attr(feature = "logging", test_log::test)]
+    #[cfg_attr(not(feature = "logging"), test)]
     fn open() {
         init_test_logger();
         let (vault_path, vault_files) = create_test_vault().unwrap();
@@ -177,7 +228,8 @@ mod tests {
         assert_eq!(vault.path, vault_path.path());
     }
 
-    #[test]
+    #[cfg_attr(feature = "logging", test_log::test)]
+    #[cfg_attr(not(feature = "logging"), test)]
     #[should_panic]
     fn open_not_dir() {
         init_test_logger();
@@ -188,7 +240,8 @@ mod tests {
         let _ = Vault::open_default(&path_to_file).unwrap();
     }
 
-    #[test]
+    #[cfg_attr(feature = "logging", test_log::test)]
+    #[cfg_attr(not(feature = "logging"), test)]
     fn open_with_extra_files() {
         init_test_logger();
         let (vault_path, vault_files) = create_test_vault().unwrap();
@@ -206,7 +259,8 @@ mod tests {
         not_correct: String,
     }
 
-    #[test]
+    #[cfg_attr(feature = "logging", test_log::test)]
+    #[cfg_attr(not(feature = "logging"), test)]
     fn open_with_error() {
         init_test_logger();
 
@@ -221,7 +275,8 @@ mod tests {
         assert!(matches!(error_open, Error::Yaml(_)));
     }
 
-    #[test]
+    #[cfg_attr(feature = "logging", test_log::test)]
+    #[cfg_attr(not(feature = "logging"), test)]
     fn open_with_error_but_ignored() {
         init_test_logger();
 
@@ -235,3 +290,4 @@ mod tests {
         assert!(matches!(error_open, None));
     }
 }
+*/
