@@ -42,7 +42,10 @@ fn main() {
     println!("Time open vault: {:.2?}", open_vault.elapsed());
     println!("Count notes: {}", vault.count_notes());
 
-    println!("Check unique note name: {}", vault.have_duplicates_notes());
+    println!(
+        "Check unique note name: {}",
+        vault.have_duplicates_notes_by_name()
+    );
 
     /* TODO
 

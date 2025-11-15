@@ -2,6 +2,34 @@ use super::Vault;
 use crate::obfile::ObFile;
 use std::collections::HashSet;
 
+fn get_duplicates<'a, F>(sorted_notes: &[&'a F]) -> Vec<&'a F>
+where
+    F: ObFile,
+{
+    let mut duplicated = Vec::new();
+    let mut add_two = true;
+    for i in 1..sorted_notes.len() {
+        let note1 = sorted_notes[i - 1];
+        let note2 = sorted_notes[i];
+
+        if let (Some(name1), Some(name2)) = (note1.note_name(), note2.note_name()) {
+            if name1 == name2 {
+                if add_two {
+                    add_two = false;
+                    duplicated.push(note1);
+                    duplicated.push(note2);
+                } else {
+                    duplicated.push(note2);
+                }
+            } else {
+                add_two = true;
+            }
+        }
+    }
+
+    duplicated
+}
+
 impl<F> Vault<F>
 where
     F: ObFile,
@@ -9,11 +37,11 @@ where
     /// Returns duplicated note name
     ///
     /// # Performance
-    /// Operates in O(n) time for large vaults
+    /// Operates in O(n log n) time for large vaults
     ///
     /// # Other
     /// See [`check_unique_note_name`](Vault::check_unique_note_name)
-    pub fn get_duplicates_notes_by_name(&self) -> Vec<String> {
+    pub fn get_duplicates_notes_by_name<'a>(&'a self) -> Vec<&'a F> {
         #[cfg(feature = "logging")]
         log::debug!(
             "Get duplicates notes by name in {} ({} notes)",
@@ -21,29 +49,53 @@ where
             self.count_notes()
         );
 
-        let mut seens_notes = HashSet::new();
-        let mut duplicated_notes = Vec::new();
+        let sorted_notes = {
+            let mut notes: Vec<_> = self.notes().iter().map(|x| x).collect();
+            notes.sort_unstable_by_key(|note| note.note_name());
 
-        #[allow(
-            clippy::missing_panics_doc,
-            clippy::unwrap_used,
-            reason = "In any case, we will have a path to the files"
-        )]
-        for note in self.notes() {
-            let note_name = note.note_name().unwrap();
+            notes
+        };
 
-            if !seens_notes.insert(note_name.clone()) {
-                #[cfg(feature = "logging")]
-                log::trace!("Found duplicate");
-
-                duplicated_notes.push(note_name);
-            }
-        }
+        let duplicated_notes = get_duplicates(&sorted_notes);
 
         #[cfg(feature = "logging")]
-        if !duplicated_notes.is_empty() {
-            log::warn!("Found {} duplicate filenames", duplicated_notes.len());
-        }
+        log::debug!("Found {} duplicated notes", duplicated_notes.len());
+
+        duplicated_notes
+    }
+
+    /// Returns duplicated note name
+    ///
+    /// # Performance
+    /// Operates in O(n log n) time for large vaults
+    ///
+    /// # Other
+    /// See [`check_unique_note_name`](Vault::check_unique_note_name)
+    #[cfg(feature = "rayon")]
+    pub fn par_get_duplicates_notes_by_name<'a>(&'a self) -> Vec<&'a F>
+    where
+        &'a F: Send,
+    {
+        use rayon::prelude::*;
+
+        #[cfg(feature = "logging")]
+        log::debug!(
+            "Par get duplicates notes by name in {} ({} notes)",
+            self.path().display(),
+            self.count_notes()
+        );
+
+        let sorted_notes = {
+            let mut notes: Vec<_> = self.notes().iter().map(|x| x).collect();
+            notes.par_sort_unstable_by_key(|note| note.note_name());
+
+            notes
+        };
+
+        let duplicated_notes = get_duplicates(&sorted_notes);
+
+        #[cfg(feature = "logging")]
+        log::debug!("Found {} duplicated notes", duplicated_notes.len());
 
         duplicated_notes
     }
@@ -59,8 +111,17 @@ where
     /// # Other
     /// See [`get_duplicates_notes`](Vault::get_duplicates_notes)
     #[must_use]
-    pub fn have_duplicates_notes(&self) -> bool {
+    pub fn have_duplicates_notes_by_name(&self) -> bool {
         !self.get_duplicates_notes_by_name().is_empty()
+    }
+
+    #[must_use]
+    #[cfg(feature = "rayon")]
+    pub fn par_have_duplicates_notes_by_name<'a>(&'a self) -> bool
+    where
+        &'a F: Send,
+    {
+        !self.par_get_duplicates_notes_by_name().is_empty()
     }
 
     #[cfg(feature = "digest")]
@@ -76,104 +137,62 @@ where
             self.count_notes()
         );
 
-        let mut seens_notes = HashSet::new();
-        let mut duplicated_notes = Vec::new();
+        let mut hashed = Vec::with_capacity(self.count_notes());
+        for i in 0..self.count_notes() {
+            let content = self.notes()[i].content()?;
+            let hash = D::digest(content.as_bytes());
 
-        #[allow(
-            clippy::missing_panics_doc,
-            clippy::unwrap_used,
-            reason = "In any case, we will have a path to the files"
-        )]
-        for note in self.notes() {
-            let hashed_content = D::digest(note.content()?.as_bytes());
-
-            if !seens_notes.insert(hashed_content) {
-                #[cfg(feature = "logging")]
-                log::trace!("Found duplicate");
-
-                duplicated_notes.push(note);
-            }
+            hashed.push(hash);
         }
 
-        #[cfg(feature = "logging")]
-        if !duplicated_notes.is_empty() {
-            log::warn!("Found {} duplicate filenames", duplicated_notes.len());
+        let sorted_notes = {
+            let mut notes: Vec<_> = self.notes().iter().map(|x| x).zip(hashed).collect();
+            notes.sort_unstable_by_key(|(_, hash)| hash.clone());
+
+            notes
+        };
+
+        let mut duplicated_notes = Vec::new();
+        let mut add_two = true;
+        for i in 1..sorted_notes.len() {
+            let (note1, hash1) = &sorted_notes[i - 1];
+            let (note2, hash2) = &sorted_notes[i];
+
+            if hash1 == hash2 {
+                if add_two {
+                    add_two = false;
+                    duplicated_notes.push(*note1);
+                    duplicated_notes.push(*note2);
+                } else {
+                    duplicated_notes.push(*note2);
+                }
+            } else {
+                add_two = true;
+            }
         }
 
         Ok(duplicated_notes)
     }
 
     #[cfg(feature = "digest")]
-    #[cfg(feature = "rayon")]
     #[cfg_attr(docsrs, doc(cfg(feature = "digest")))]
-    #[cfg_attr(docsrs, doc(cfg(feature = "rayon")))]
-    pub fn par_get_duplicates_notes_by_content<D>(&self) -> Result<Vec<F>, F::Error>
+    pub fn have_duplicates_notes_by_content<D>(&self) -> Result<bool, F::Error>
     where
-        F: Clone + Send,
         D: digest::Digest,
     {
-        use rayon::prelude::*;
-
-        #[cfg(feature = "logging")]
-        log::debug!(
-            "Get duplicates notes by content in {} ({} notes)",
-            self.path().display(),
-            self.count_notes()
-        );
-
-        #[cfg(feature = "logging")]
-        log::debug!("Hashing notes...");
-
-        let notes: Vec<_> = self
-            .notes()
-            .clone()
-            .into_par_iter()
-            .map(|note| {
-                let hash = D::digest(note.content().unwrap().as_bytes());
-
-                (note, hash)
-            })
-            .collect();
-
-        #[cfg(feature = "logging")]
-        log::debug!("Done hashing notes!");
-
-        let mut seens_notes = HashSet::new();
-        
-        let mut duplicated_notes = Vec::new();
-
-        #[allow(
-            clippy::missing_panics_doc,
-            clippy::unwrap_used,
-            reason = "In any case, we will have a path to the files"
-        )]
-        for (note, hashed_content) in notes {
-            if !seens_notes.insert(hashed_content) {
-                #[cfg(feature = "logging")]
-                log::trace!("Found duplicate");
-
-                duplicated_notes.push((note));
-            }
-        }
-
-        #[cfg(feature = "logging")]
-        if !duplicated_notes.is_empty() {
-            log::warn!("Found {} duplicate filenames", duplicated_notes.len());
-        }
-
-        Ok(duplicated_notes)
+        Ok(!self.get_duplicates_notes_by_content::<D>()?.is_empty())
     }
 }
 
 #[cfg(test)]
 mod tests {
     use crate::{
-        obfile::ObFileRead,
+        obfile::{ObFile, ObFileRead},
         prelude::{FilesBuilder, IteratorFilesBuilder, ObFileInMemory, VaultOptions},
         vault::Vault,
     };
     use serde::de::DeserializeOwned;
-    use std::fs::File;
+    use std::{fs::File, io::Write};
     use tempfile::TempDir;
 
     fn create_vault_with_diplicates_files<F>() -> (Vault<F>, TempDir)
@@ -184,12 +203,13 @@ mod tests {
     {
         let temp_dir = TempDir::new().unwrap();
 
-        let file1 = File::create(&temp_dir.path().join("file.md")).unwrap();
-        file1.
+        let mut file1 = File::create(&temp_dir.path().join("file.md")).unwrap();
+        file1.write_all(b"same text").unwrap();
 
         let path_to_duplicate_file = temp_dir.path().join("folder");
         std::fs::create_dir(&path_to_duplicate_file).unwrap();
-        File::create(path_to_duplicate_file.join("file.md")).unwrap();
+        let mut file2 = File::create(path_to_duplicate_file.join("file.md")).unwrap();
+        file2.write_all(b"same text").unwrap();
 
         let options = VaultOptions::new(&temp_dir);
         let vault = FilesBuilder::new(&options)
@@ -225,27 +245,103 @@ mod tests {
 
     #[cfg_attr(feature = "logging", test_log::test)]
     #[cfg_attr(not(feature = "logging"), test)]
-    fn get_duplicates_notes_by_name() {
-        let (vault, _path) = create_vault_without_diplicates_files::<ObFileInMemory>();
-
-        assert!(vault.get_duplicates_notes_by_name().is_empty());
-    }
-
-    #[cfg_attr(feature = "logging", test_log::test)]
-    #[cfg_attr(not(feature = "logging"), test)]
     fn with_duplicates_notes_by_name() {
         let (vault, _path) = create_vault_with_diplicates_files::<ObFileInMemory>();
 
-        let duplicated_notes: Vec<_> = vault.get_duplicates_notes_by_name();
-        assert_eq!(duplicated_notes, ["file".to_string()]);
-        assert!(vault.have_duplicates_notes());
+        let duplicated_notes: Vec<_> = vault
+            .get_duplicates_notes_by_name()
+            .into_iter()
+            .map(|note| note.note_name().unwrap())
+            .collect();
+
+        assert_eq!(duplicated_notes, ["file".to_string(), "file".to_string()]);
+        assert!(vault.have_duplicates_notes_by_name());
     }
 
     #[cfg_attr(feature = "logging", test_log::test)]
     #[cfg_attr(not(feature = "logging"), test)]
-    fn check_unique_note_name() {
+    fn without_duplicates_notes_by_name() {
         let (vault, _path) = create_vault_without_diplicates_files::<ObFileInMemory>();
 
-        assert!(!vault.have_duplicates_notes());
+        let duplicated_notes: Vec<_> = vault
+            .get_duplicates_notes_by_name()
+            .into_iter()
+            .map(|note| note.note_name().unwrap())
+            .collect();
+
+        assert_eq!(duplicated_notes.is_empty(), true);
+        assert!(!vault.have_duplicates_notes_by_name());
+    }
+
+    #[cfg_attr(feature = "logging", test_log::test)]
+    #[cfg_attr(not(feature = "logging"), test)]
+    #[cfg(feature = "rayon")]
+    fn par_with_duplicates_notes_by_name() {
+        let (vault, _path) = create_vault_with_diplicates_files::<ObFileInMemory>();
+
+        let duplicated_notes: Vec<_> = vault
+            .par_get_duplicates_notes_by_name()
+            .into_iter()
+            .map(|note| note.note_name().unwrap())
+            .collect();
+
+        assert_eq!(duplicated_notes, ["file".to_string(), "file".to_string()]);
+        assert!(vault.par_have_duplicates_notes_by_name());
+    }
+
+    #[cfg_attr(feature = "logging", test_log::test)]
+    #[cfg_attr(not(feature = "logging"), test)]
+    #[cfg(feature = "rayon")]
+    fn par_without_duplicates_notes_by_name() {
+        let (vault, _path) = create_vault_without_diplicates_files::<ObFileInMemory>();
+
+        let duplicated_notes: Vec<_> = vault
+            .par_get_duplicates_notes_by_name()
+            .into_iter()
+            .map(|note| note.note_name().unwrap())
+            .collect();
+
+        assert_eq!(duplicated_notes.is_empty(), true);
+        assert!(!vault.par_have_duplicates_notes_by_name());
+    }
+    #[cfg_attr(feature = "logging", test_log::test)]
+    #[cfg_attr(not(feature = "logging"), test)]
+    #[cfg(feature = "digest")]
+    fn with_duplicates_notes_by_content() {
+        let (vault, _path) = create_vault_with_diplicates_files::<ObFileInMemory>();
+
+        let duplicated_notes: Vec<_> = vault
+            .get_duplicates_notes_by_content::<sha2::Sha256>()
+            .unwrap()
+            .into_iter()
+            .map(|note| note.note_name().unwrap())
+            .collect();
+
+        assert_eq!(duplicated_notes, ["file".to_string(), "file".to_string()]);
+        assert!(
+            vault
+                .have_duplicates_notes_by_content::<sha2::Sha256>()
+                .unwrap()
+        );
+    }
+
+    #[cfg_attr(feature = "logging", test_log::test)]
+    #[cfg_attr(not(feature = "logging"), test)]
+    fn without_duplicates_notes_by_content() {
+        let (vault, _path) = create_vault_without_diplicates_files::<ObFileInMemory>();
+
+        let duplicated_notes: Vec<_> = vault
+            .get_duplicates_notes_by_content::<sha2::Sha256>()
+            .unwrap()
+            .into_iter()
+            .map(|note| note.note_name().unwrap())
+            .collect();
+
+        assert_eq!(duplicated_notes.is_empty(), true);
+        assert!(
+            !vault
+                .have_duplicates_notes_by_content::<sha2::Sha256>()
+                .unwrap()
+        );
     }
 }
