@@ -101,6 +101,7 @@
 #![warn(clippy::unreadable_literal)]
 #![warn(clippy::missing_const_for_fn)]
 #![warn(clippy::as_conversions)]
+#![allow(clippy::missing_errors_doc)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 pub mod obfile;

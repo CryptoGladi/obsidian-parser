@@ -96,8 +96,8 @@ pub mod vault_open;
 //#[cfg_attr(docsrs, doc(cfg(feature = "petgraph")))]
 //pub mod vault_petgraph;
 
-//#[cfg(test)]
-//mod vault_test;
+#[cfg(test)]
+mod vault_test;
 
 //pub(crate) mod vault_get_files;
 
@@ -122,7 +122,7 @@ pub type VaultInMemory<T = DefaultProperties> = Vault<ObFileInMemory<T>>;
 /// - `T`: Type for frontmatter properties
 /// - `F`: File representation type
 #[derive(Debug, Default, PartialEq, Eq, Clone)]
-pub struct Vault<F>
+pub struct Vault<F = ObFileInMemory>
 where
     F: ObFile,
 {
@@ -153,19 +153,59 @@ where
     }
 }
 
-/*
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::vault::vault_test::create_test_vault;
+    use crate::{
+        prelude::{FilesBuilder, IteratorFilesBuilder, VaultOptions},
+        vault::vault_test::create_files_for_vault,
+    };
 
     #[cfg_attr(feature = "logging", test_log::test)]
     #[cfg_attr(not(feature = "logging"), test)]
-    fn check_unique_note_name() {
-        let (vault_path, _) = create_test_vault().unwrap();
+    fn notes() {
+        let (path, files) = create_files_for_vault().unwrap();
 
-        let vault = Vault::open_default(vault_path.path()).unwrap();
-        assert!(!vault.check_unique_note_name());
+        let options = VaultOptions::new(&path);
+        let vault: VaultInMemory = FilesBuilder::new(&options)
+            .include_hidden(true)
+            .into_iter()
+            .map(|file| file.unwrap())
+            .build_vault(&options)
+            .unwrap();
+
+        assert_eq!(vault.notes().len(), files.len());
+    }
+
+    #[cfg_attr(feature = "logging", test_log::test)]
+    #[cfg_attr(not(feature = "logging"), test)]
+    fn count_notes() {
+        let (path, files) = create_files_for_vault().unwrap();
+
+        let options = VaultOptions::new(&path);
+        let vault: VaultInMemory = FilesBuilder::new(&options)
+            .include_hidden(true)
+            .into_iter()
+            .map(|file| file.unwrap())
+            .build_vault(&options)
+            .unwrap();
+
+        assert_eq!(vault.count_notes(), files.len());
+    }
+
+    #[cfg_attr(feature = "logging", test_log::test)]
+    #[cfg_attr(not(feature = "logging"), test)]
+    fn path() {
+        let (path, _) = create_files_for_vault().unwrap();
+
+        let options = VaultOptions::new(&path);
+        let vault: VaultInMemory = FilesBuilder::new(&options)
+            .include_hidden(true)
+            .into_iter()
+            .map(|file| file.unwrap())
+            .build_vault(&options)
+            .unwrap();
+
+        assert_eq!(vault.path(), path.path());
     }
 }
-*/

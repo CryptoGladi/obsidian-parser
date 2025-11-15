@@ -1,7 +1,11 @@
+use crate::{
+    prelude::{FilesBuilder, IteratorFilesBuilder, VaultOptions},
+    vault::Vault,
+};
 use std::{fs::File, io::Write};
 use tempfile::TempDir;
 
-pub fn create_test_vault() -> Result<(TempDir, Vec<File>), std::io::Error> {
+pub(crate) fn create_files_for_vault() -> Result<(TempDir, Vec<File>), std::io::Error> {
     let temp_dir = TempDir::new()?;
 
     static TEST_MAIN_DATA: &[u8] =
@@ -17,5 +21,24 @@ pub fn create_test_vault() -> Result<(TempDir, Vec<File>), std::io::Error> {
     let mut main2 = File::create(temp_dir.path().join("data").join("main.md"))?;
     main2.write_all(b"New main. [[link]]")?;
 
+    #[cfg(feature = "logging")]
+    log::debug!(
+        "Created test files for vault in: {}",
+        temp_dir.path().display()
+    );
+
     Ok((temp_dir, vec![main, main2, link]))
+}
+
+pub(crate) fn create_test_vault() -> Result<(Vault, TempDir), std::io::Error> {
+    let (path, _) = create_files_for_vault()?;
+
+    let options = VaultOptions::new(&path);
+    let vault = FilesBuilder::new(&options)
+        .into_iter()
+        .map(|file| file.unwrap())
+        .build_vault(&options)
+        .unwrap();
+
+    Ok((vault, path))
 }

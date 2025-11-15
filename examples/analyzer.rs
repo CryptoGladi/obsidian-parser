@@ -27,7 +27,7 @@ fn main() {
 
     let open_vault = Instant::now();
     let options = VaultOptions::new(&args.path);
-    let files = FilesBuilder::new(options.clone())
+    let files = FilesBuilder::new(&options)
         .include_hidden(false)
         .into_par_iter()
         .filter_map(|file| match file {
@@ -38,11 +38,11 @@ fn main() {
             }
         });
 
-    let vault: VaultOnDisk = files.build_vault(options);
+    let vault: VaultOnDisk = files.build_vault(&options).unwrap();
     println!("Time open vault: {:.2?}", open_vault.elapsed());
     println!("Count notes: {}", vault.count_notes());
 
-    println!("Check unique note name: {}", vault.check_unique_note_name());
+    println!("Check unique note name: {}", vault.have_duplicates_notes());
 
     /* TODO
 

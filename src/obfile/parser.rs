@@ -45,8 +45,8 @@ pub enum ResultParse<'a> {
 
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("Invalid format")]
-    InvalidFormat,
+    #[error("Not found closer in yaml like `---`")]
+    NotFoundCloser,
 }
 
 pub fn parse_obfile(raw_text: &str) -> Result<ResultParse<'_>, Error> {
@@ -58,7 +58,7 @@ pub fn parse_obfile(raw_text: &str) -> Result<ResultParse<'_>, Error> {
     if have_start_properties {
         let closed = raw_text["---".len()..]
             .find("---")
-            .ok_or(Error::InvalidFormat)?;
+            .ok_or(Error::NotFoundCloser)?;
 
         return Ok(ResultParse::WithProperties {
             content: raw_text[(closed + 2 * "...".len())..].trim(),
