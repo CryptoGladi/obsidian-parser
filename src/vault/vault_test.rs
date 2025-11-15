@@ -8,9 +8,9 @@ use tempfile::TempDir;
 pub(crate) fn create_files_for_vault() -> Result<(TempDir, Vec<File>), std::io::Error> {
     let temp_dir = TempDir::new()?;
 
-    static TEST_MAIN_DATA: &[u8] =
+    const TEST_MAIN_DATA: &[u8] =
         b"---\ntopic: work\ncreated: 15-04-2006\n---\nMain data. Other [[data/main|main]]";
-    static TEST_LINK_DATA: &[u8] = b"---\ntopic: kinl\ncreated: 15-04-2006\n---\n[[main]]";
+    const TEST_LINK_DATA: &[u8] = b"---\ntopic: kinl\ncreated: 15-04-2006\n---\n[[main]]";
 
     let mut main = File::create(temp_dir.path().join("main.md"))?;
     let mut link = File::create(temp_dir.path().join("link.md"))?;
@@ -30,8 +30,8 @@ pub(crate) fn create_files_for_vault() -> Result<(TempDir, Vec<File>), std::io::
     Ok((temp_dir, vec![main, main2, link]))
 }
 
-pub(crate) fn create_test_vault() -> Result<(Vault, TempDir), std::io::Error> {
-    let (path, _) = create_files_for_vault()?;
+pub(crate) fn create_test_vault() -> Result<(Vault, TempDir, Vec<File>), std::io::Error> {
+    let (path, files) = create_files_for_vault()?;
 
     let options = VaultOptions::new(&path);
     let vault = FilesBuilder::new(&options)
@@ -40,5 +40,5 @@ pub(crate) fn create_test_vault() -> Result<(Vault, TempDir), std::io::Error> {
         .build_vault(&options)
         .unwrap();
 
-    Ok((vault, path))
+    Ok((vault, path, files))
 }

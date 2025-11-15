@@ -88,7 +88,7 @@ use std::marker::{Send, Sync};
 
 impl<F> Vault<F>
 where
-    F: ObFile + Send + Sync,
+    F: ObFile,
 {
     /// Builds directed graph representing note relationships
     ///
@@ -126,6 +126,20 @@ where
         graph_builder.build()
     }
 
+    #[cfg_attr(docsrs, doc(cfg(feature = "petgraph")))]
+    #[cfg(feature = "rayon")]
+    #[must_use]
+    pub fn par_get_digraph(&self) -> DiGraph<String, ()>
+    where
+        F: Send + Sync,
+    {
+        #[cfg(feature = "logging")]
+        log::debug!("Building directed graph");
+
+        let graph_builder = GraphBuilder::new(self, DiGraph::new());
+        graph_builder.par_build()
+    }
+
     /// Builds undirected graph showing note connections
     ///
     /// Useful for connectivity analysis where direction doesn't matter
@@ -153,6 +167,20 @@ where
         let graph_builder = GraphBuilder::new(self, UnGraph::new_undirected());
         graph_builder.build()
     }
+
+    #[cfg_attr(docsrs, doc(cfg(feature = "petgraph")))]
+    #[cfg(feature = "rayon")]
+    #[must_use]
+    pub fn par_get_ungraph(&self) -> UnGraph<String, ()>
+    where
+        F: Send + Sync,
+    {
+        #[cfg(feature = "logging")]
+        log::debug!("Building undirected graph");
+
+        let graph_builder = GraphBuilder::new(self, UnGraph::new_undirected());
+        graph_builder.par_build()
+    }
 }
 
 #[cfg(test)]
@@ -160,10 +188,11 @@ mod tests {
     use super::*;
     use crate::vault::vault_test::create_test_vault;
 
-    #[test]
+    #[cfg_attr(feature = "logging", test_log::test)]
+    #[cfg_attr(not(feature = "logging"), test)]
+    #[cfg(feature = "petgraph")]
     fn get_digraph() {
-        let (vault_path, files) = create_test_vault().unwrap();
-        let vault = Vault::open_default(vault_path.path()).unwrap();
+        let (vault, _temp_dir, files) = create_test_vault().unwrap();
 
         let graph = vault.get_digraph();
 
@@ -171,13 +200,27 @@ mod tests {
         assert_eq!(graph.node_count(), files.len());
     }
 
-    #[test]
-    fn get_ungraph() {
-        let (vault_path, files) = create_test_vault().unwrap();
-        let vault = Vault::open_default(vault_path.path()).unwrap();
+    #[cfg_attr(feature = "logging", test_log::test)]
+    #[cfg_attr(not(feature = "logging"), test)]
+    #[cfg(feature = "petgraph")]
+    #[cfg(feature = "rayon")]
+    fn par_get_digraph() {
+        let (vault, _temp_dir, files) = create_test_vault().unwrap();
 
-        let graph = vault.get_ungraph();
+        let graph = vault.par_get_digraph();
 
+        assert_eq!(graph.edge_count(), 3);
+        assert_eq!(graph.node_count(), files.len());
+    }
+
+    #[cfg_attr(feature = "logging", test_log::test)]
+    #[cfg_attr(not(feature = "logging"), test)]
+    #[cfg(feature = "petgraph")]
+    #[cfg(feature = "rayon")]
+    fn par_get_ungraph() {
+        let (vault, _temp_dir, files) = create_test_vault().unwrap();
+
+        let graph = vault.par_get_ungraph();
         assert_eq!(graph.edge_count(), 3);
         assert_eq!(graph.node_count(), files.len());
     }

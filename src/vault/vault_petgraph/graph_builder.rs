@@ -6,8 +6,8 @@ use std::path::Path;
 
 pub struct GraphBuilder<'a, F, Ty>
 where
-    F: ObFile + Send + Sync,
-    Ty: EdgeType + Send,
+    F: ObFile,
+    Ty: EdgeType,
 {
     vault: &'a Vault<F>,
     graph: Graph<String, (), Ty>,
@@ -15,8 +15,8 @@ where
 
 impl<'a, F, Ty> GraphBuilder<'a, F, Ty>
 where
-    F: ObFile + Send + Sync,
-    Ty: EdgeType + Send,
+    F: ObFile,
+    Ty: EdgeType,
 {
     pub(crate) const fn new(vault: &'a Vault<F>, graph: Graph<String, (), Ty>) -> Self {
         Self { vault, graph }
@@ -25,13 +25,38 @@ where
     pub(crate) fn build(mut self) -> Graph<String, (), Ty> {
         #[cfg(feature = "logging")]
         log::debug!(
-            "Building graph for vault: {} ({} files)",
+            "Building graph for vault: {} ({} notes)",
             self.vault.path.display(),
-            self.vault.files.len()
+            self.vault.count_notes()
         );
 
         let index = self.create_index();
         self.create_edges(&index);
+
+        #[cfg(feature = "logging")]
+        log::debug!(
+            "Graph construction complete. Edges: {}",
+            self.graph.edge_count()
+        );
+
+        self.graph
+    }
+
+    #[cfg(feature = "rayon")]
+    pub(crate) fn par_build(mut self) -> Graph<String, (), Ty>
+    where
+        F: Send + Sync,
+        Ty: Send,
+    {
+        #[cfg(feature = "logging")]
+        log::debug!(
+            "Building graph for vault: {} ({} notes)",
+            self.vault.path.display(),
+            self.vault.count_notes()
+        );
+
+        let index = self.create_index();
+        self.par_create_edges(&index);
 
         #[cfg(feature = "logging")]
         log::debug!(
@@ -75,7 +100,7 @@ where
             clippy::unwrap_used,
             reason = "When creating a Vault, the path will be mandatory"
         )]
-        for file in &self.vault.files {
+        for file in self.vault.notes() {
             let full = Self::relative_path(file, &self.vault.path);
             let short = file.note_name().unwrap();
 
@@ -84,7 +109,7 @@ where
         }
 
         #[cfg(feature = "logging")]
-        log::debug!("Done create index for {} files", self.vault.files.len());
+        log::debug!("Done create index for {} notes", self.vault.count_notes());
 
         index
     }
@@ -93,7 +118,11 @@ where
     ///
     /// Uses parallel processing when `rayon` feature is enabled
     #[cfg(feature = "rayon")]
-    fn create_edges(&mut self, index: &Index) {
+    fn par_create_edges(&mut self, index: &Index)
+    where
+        F: Send + Sync,
+        Ty: Send,
+    {
         use rayon::prelude::*;
 
         const CHUNK_SIZE: usize = 10;
@@ -102,23 +131,23 @@ where
         log::debug!("Using parallel edge builder (rayon enabled)");
 
         let (tx, rx) = crossbeam_channel::unbounded();
-        let files = &self.vault.files;
+        let notes = &self.vault.notes();
         let strip_prefix = &self.vault.path;
         let graph = &mut self.graph;
 
         rayon::scope(|s| {
             s.spawn(|_| {
-                files
+                notes
                     .into_par_iter()
                     .chunks(CHUNK_SIZE)
-                    .for_each_with(tx, |tx, files| {
+                    .for_each_with(tx, |tx, notes| {
                         let mut result = Vec::with_capacity(10 * CHUNK_SIZE);
 
-                        for file in files {
-                            let path = Self::relative_path(file, strip_prefix);
+                        for note in notes {
+                            let path = Self::relative_path(&note, strip_prefix);
                             let node_to = index.full[&path];
 
-                            parse_links(&file.content().expect("read content"))
+                            parse_links(&note.content().expect("read content"))
                                 .filter_map(|link| index.get(link))
                                 .map(|node_from| (node_to, *node_from))
                                 .for_each(|x| result.push(x));
@@ -142,12 +171,11 @@ where
     /// Builds edges between nodes in the graph
     ///
     /// Uses parallel processing when `rayon` feature is enabled
-    #[cfg(not(feature = "rayon"))]
     fn create_edges(&mut self, index: &Index) {
         #[cfg(feature = "logging")]
         log::debug!("Using sequential edge builder");
 
-        for file in &self.vault.files {
+        for file in self.vault.notes() {
             let path = Self::relative_path(file, &self.vault.path);
             let node_to = index.full[&path];
 

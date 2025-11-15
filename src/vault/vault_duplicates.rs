@@ -1,6 +1,5 @@
 use super::Vault;
 use crate::obfile::ObFile;
-use std::collections::HashSet;
 
 fn get_duplicates<'a, F>(sorted_notes: &[&'a F]) -> Vec<&'a F>
 where
@@ -327,6 +326,7 @@ mod tests {
 
     #[cfg_attr(feature = "logging", test_log::test)]
     #[cfg_attr(not(feature = "logging"), test)]
+    #[cfg(feature = "digest")]
     fn without_duplicates_notes_by_content() {
         let (vault, _path) = create_vault_without_diplicates_files::<ObFileInMemory>();
 

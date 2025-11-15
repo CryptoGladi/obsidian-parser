@@ -92,14 +92,13 @@
 pub mod error;
 pub mod vault_duplicates;
 pub mod vault_open;
-//#[cfg(feature = "petgraph")]
-//#[cfg_attr(docsrs, doc(cfg(feature = "petgraph")))]
-//pub mod vault_petgraph;
+
+#[cfg(feature = "petgraph")]
+#[cfg_attr(docsrs, doc(cfg(feature = "petgraph")))]
+pub mod vault_petgraph;
 
 #[cfg(test)]
 mod vault_test;
-
-//pub(crate) mod vault_get_files;
 
 use crate::obfile::DefaultProperties;
 use crate::obfile::ObFile;

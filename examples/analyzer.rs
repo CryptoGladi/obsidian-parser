@@ -47,12 +47,8 @@ fn main() {
         vault.have_duplicates_notes_by_name()
     );
 
-    /* TODO
-
-    let vault = Vault::open_default(&args.path).unwrap();
-
     let get_graph = Instant::now();
-    let ungraph = vault.get_ungraph();
+    let ungraph = vault.par_get_ungraph();
     println!("Time get graph: {:.2?}", get_graph.elapsed());
 
     println!("Count nodes in graph: {}", ungraph.node_count());
@@ -69,12 +65,4 @@ fn main() {
         .max_by_key(|n| ungraph.edges(*n).count())
         .unwrap();
     println!("Knowledge hub in ungraph: {}", ungraph[most_connected]);
-
-    let digraph = vault.get_digraph();
-    let most_connected = digraph
-        .node_indices()
-        .max_by_key(|n| digraph.edges(*n).count())
-        .unwrap();
-    println!("Knowledge hub in digraph: {}", digraph[most_connected]);
-    */
 }
