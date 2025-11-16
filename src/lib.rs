@@ -19,69 +19,6 @@
 //! obsidian-parser = { version = "0.6", features = ["petgraph", "rayon"] }
 //! ```
 //!
-//! ## Examples
-//!
-//! ### Basic Parsing
-//! ```no_run
-//! use obsidian_parser::prelude::*;
-//! use serde::Deserialize;
-//!
-//! // Parse single file with `HashMap`
-//! let note_hashmap = ObFileInMemory::from_file_default("note.md").unwrap();
-//!
-//! println!("Content: {}", note_hashmap.content().unwrap());
-//! println!("Properties: {:#?}", note_hashmap.properties().unwrap().unwrap());
-//!
-//! // Parse single file with custom struct
-//! #[derive(Clone, Deserialize)]
-//! struct NoteProperties {
-//!     created: String,
-//!     tags: Vec<String>,
-//!     priority: u8,
-//! }
-//!
-//! let note_with_serde: ObFileInMemory<NoteProperties> = ObFileInMemory::from_file("note.md").unwrap();
-//! ```
-//!
-//! ### Vault Analysis
-//! ```no_run
-//! use obsidian_parser::prelude::*;
-//!
-//! // Load entire vault
-//! let vault = Vault::open_default("/path/to/vault").unwrap();
-//!
-//! // Check for duplicate note names
-//! if !vault.check_unique_note_name() {
-//!     eprintln!("Duplicate note names detected!");
-//! }
-//!
-//! // Access parsed files
-//! for file in vault.files {
-//!   println!("Note: {:?}", file.path());
-//! }
-//! ```
-//!
-//! ### Graph Analysis (requires [`petgraph`](https://docs.rs/petgraph/latest/petgraph) feature)
-//! ```no_run
-//! #[cfg(feature = "petgraph")]
-//! {
-//!     use obsidian_parser::prelude::*;
-//!     use petgraph::dot::{Dot, Config};
-//!
-//!     let vault = Vault::open_default("/path/to/vault").unwrap();
-//!     let graph = vault.get_digraph();
-//!     
-//!     // Export to Graphviz format
-//!     println!("{:?}", Dot::with_config(&graph, &[Config::EdgeNoLabel]));
-//!     
-//!     // Find most connected note
-//!     let most_connected = graph.node_indices()
-//!         .max_by_key(|n| graph.edges(*n).count())
-//!         .unwrap();
-//!     println!("Knowledge hub: {}", graph[most_connected]);
-//! }
-//! ```
-//!
 //! ## Performance
 //! Optimized for large vaults:
 //! - 🚀 1000 files parsed in 2.6 ms (avg)

@@ -11,7 +11,7 @@ use thiserror::Error;
 ///
 /// # Example
 /// ```
-/// # use obsidian_parser::obfile::parse_links;
+/// # use obsidian_parser::obfile::parser::parse_links;
 /// let content = "[[Physics]] and [[Math|Mathematics]]";
 /// let links: Vec<_> = parse_links(content).collect();
 /// assert_eq!(links, vec!["Physics", "Math"]);

@@ -24,58 +24,6 @@
 //! [dependencies]
 //! obsidian-parser = { version = "0.6", features = ["petgraph"] }
 //! ```
-//!
-//! # Examples
-//!
-//! ## Basic Graph Analysis
-//! ```no_run
-//! use obsidian_parser::prelude::*;
-//! use petgraph::dot::{Dot, Config};
-//!
-//! // Load vault (uses ObFileOnDisk by default)
-//! let vault = Vault::open_default("/path/to/vault").unwrap();
-//!
-//! // Build directed graph
-//! let graph = vault.get_digraph();
-//!
-//! // Export to Graphviz format
-//! println!("{:?}", Dot::with_config(&graph, &[Config::EdgeNoLabel]));
-//! ```
-//!
-//! ## Advanced Connectivity Analysis
-//! ```no_run
-//! use obsidian_parser::prelude::*;
-//! use petgraph::algo;
-//!
-//! let vault = Vault::open_default("/path/to/vault").unwrap();
-//! let graph = vault.get_ungraph();
-//!
-//! // Find knowledge clusters
-//! let components = algo::connected_components(&graph);
-//! println!("Found {} knowledge clusters", components);
-//! ```
-//!
-//! ## Custom Properties with Graph Analysis
-//! ```no_run
-//! use obsidian_parser::prelude::*;
-//! use serde::Deserialize;
-//!
-//! #[derive(Deserialize, Clone)]
-//! struct NoteProperties {
-//!     importance: Option<usize>,
-//! }
-//!
-//! // Load vault with custom properties
-//! let vault: VaultInMemory<NoteProperties> = Vault::open("/path/to/vault").unwrap();
-//!
-//! // Build graph filtering by property
-//! let mut graph = vault.get_digraph();
-//!
-//! // Remove low-importance nodes
-//! graph.retain_nodes(|g, n| {
-//!     vault.files[n.index()].properties().unwrap().unwrap().importance.unwrap_or(0) > 5
-//! });
-//! ```
 
 mod graph_builder;
 mod index;
@@ -128,22 +76,6 @@ where
     /// - For vaults with 1000+ notes, enable `rayon` feature
     /// - Uses [`ObFileOnDisk`](crate::prelude::ObFileOnDisk) for minimal memory footprint
     ///
-    /// # Example
-    /// ```no_run
-    /// # use obsidian_parser::prelude::*;
-    /// # use petgraph::Direction;
-    /// # let vault = Vault::open_default("test_vault").unwrap();
-    /// let graph = vault.get_digraph();
-    ///
-    /// // Analyze note influence
-    /// let mut influence_scores: Vec<_> = graph.node_indices()
-    ///     .map(|i| (i, graph.edges_directed(i, Direction::Incoming).count()))
-    ///     .collect();
-    ///
-    /// influence_scores.sort_by_key(|(_, count)| *count);
-    /// println!("Most influential note: {:?}", influence_scores.last().unwrap());
-    /// ```
-    ///
     /// # Other
     /// See [`get_ungraph`](Vault::get_ungraph)
     #[cfg_attr(docsrs, doc(cfg(feature = "petgraph")))]
@@ -171,21 +103,6 @@ where
     /// Builds undirected graph showing note connections
     ///
     /// Useful for connectivity analysis where direction doesn't matter
-    ///
-    /// # Example
-    /// ```no_run
-    /// # use obsidian_parser::prelude::*;
-    /// # use petgraph::algo;
-    /// # let vault = Vault::open_default("test_vault").unwrap();
-    /// let graph = vault.get_ungraph();
-    ///
-    /// // Find connected components
-    /// let components = algo::connected_components(&graph);
-    /// println!("Found {} knowledge clusters", components);
-    /// ```
-    ///
-    /// # Other
-    /// See [`get_digraph`](Vault::get_digraph)
     #[cfg_attr(docsrs, doc(cfg(feature = "petgraph")))]
     #[must_use]
     pub fn get_ungraph<'a>(&'a self) -> Result<UnGraph<&'a F, ()>, F::Error> {
