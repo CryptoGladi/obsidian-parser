@@ -1,3 +1,5 @@
+//! It is module **only** for test!
+
 #[must_use]
 pub(crate) fn is_error<E>(error: impl std::error::Error) -> bool
 where

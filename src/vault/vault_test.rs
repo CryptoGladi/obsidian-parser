@@ -1,3 +1,5 @@
+//! Is module for **only test**
+
 use crate::{
     prelude::{IteratorVaultBuilder, VaultBuilder, VaultOptions},
     vault::Vault,

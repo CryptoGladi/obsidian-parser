@@ -18,6 +18,7 @@ use walkdir::{DirEntry, WalkDir};
 
 type FilterEntry = dyn FnMut(&DirEntry) -> bool;
 
+/// Builder for [`Vault`]
 pub struct VaultBuilder<'a> {
     options: &'a VaultOptions,
     include_hidden: bool,
@@ -75,6 +76,7 @@ fn is_md_file(path: impl AsRef<Path>) -> bool {
 macro_rules! impl_setter {
     ($name:ident, $t:ty) => {
         #[must_use]
+        #[allow(missing_docs)]
         pub const fn $name(mut self, $name: $t) -> Self {
             self.$name = $name;
             self
@@ -83,6 +85,7 @@ macro_rules! impl_setter {
 }
 
 impl<'a> VaultBuilder<'a> {
+    /// Create default [`VaultBuilder`]
     #[must_use]
     pub const fn new(options: &'a VaultOptions) -> Self {
         Self {
@@ -100,18 +103,21 @@ impl<'a> VaultBuilder<'a> {
     impl_setter!(follow_links, bool);
     impl_setter!(follow_root_links, bool);
 
+    /// Set max depth
     #[must_use]
     pub const fn max_depth(mut self, max_depth: usize) -> Self {
         self.max_depth = Some(max_depth);
         self
     }
 
+    /// Set min depth
     #[must_use]
     pub const fn min_depth(mut self, min_depth: usize) -> Self {
         self.min_depth = Some(min_depth);
         self
     }
 
+    /// Set custom filter entry
     #[must_use]
     pub fn filter_entry<F>(mut self, f: F) -> Self
     where
@@ -148,6 +154,7 @@ impl<'a> VaultBuilder<'a> {
             .filter(|path| is_md_file(path))
     }
 
+    /// Into [`VaultBuilder`] to iterator
     #[allow(clippy::should_implement_trait)]
     pub fn into_iter<F>(self) -> impl Iterator<Item = Result<F, F::Error>>
     where
@@ -160,6 +167,8 @@ impl<'a> VaultBuilder<'a> {
         files.map(|path| F::from_file(path))
     }
 
+    /// Into [`VaultBuilder`] to parallel iterator
+    #[cfg_attr(docsrs, doc(cfg(feature = "rayon")))]
     #[cfg(feature = "rayon")]
     #[must_use]
     pub fn into_par_iter<F>(self) -> impl rayon::iter::ParallelIterator<Item = Result<F, F::Error>>
@@ -175,17 +184,19 @@ impl<'a> VaultBuilder<'a> {
     }
 }
 
+/// Errors for [`VaultBuilder`]
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("Dir not found")]
+    /// Not found dir
+    #[error("Dir not found in: {0}")]
     NotFoundDir(PathBuf),
 }
 
-impl<F> Vault<F>
+impl<N> Vault<N>
 where
-    F: Note,
+    N: Note,
 {
-    fn impl_build_vault(notes: Vec<F>, options: VaultOptions) -> Result<Self, Error> {
+    fn impl_build_vault(notes: Vec<N>, options: VaultOptions) -> Result<Self, Error> {
         if !options.path().is_dir() {
             return Err(Error::NotFoundDir(options.into_path()));
         }
@@ -203,8 +214,9 @@ where
         })
     }
 
+    /// Build vault from iterator
     pub fn build_vault(
-        iter: impl Iterator<Item = F>,
+        iter: impl Iterator<Item = N>,
         options: &VaultOptions,
     ) -> Result<Self, Error> {
         let notes: Vec<_> = iter.collect();
@@ -212,13 +224,15 @@ where
         Self::impl_build_vault(notes, options.clone())
     }
 
+    /// Build vault from parallel iterator
+    #[cfg_attr(docsrs, doc(cfg(feature = "rayon")))]
     #[cfg(feature = "rayon")]
     pub fn par_build_vault(
-        iter: impl rayon::iter::ParallelIterator<Item = F>,
+        iter: impl rayon::iter::ParallelIterator<Item = N>,
         options: &VaultOptions,
     ) -> Result<Self, Error>
     where
-        F: Send,
+        N: Send,
     {
         let notes: Vec<_> = iter.collect();
 
@@ -226,29 +240,35 @@ where
     }
 }
 
-pub trait IteratorVaultBuilder<F = NoteOnDisk>: Iterator<Item = F>
+/// Trait for build [`Vault`] from iterator
+pub trait IteratorVaultBuilder<N = NoteOnDisk>: Iterator<Item = N>
 where
     Self: Sized,
-    F: Note,
+    N: Note,
 {
-    fn build_vault(self, options: &VaultOptions) -> Result<Vault<F>, Error> {
+    /// Build [`Vault`] from iterator
+    fn build_vault(self, options: &VaultOptions) -> Result<Vault<N>, Error> {
         Vault::build_vault(self, options)
     }
 }
 
-impl<F, I> IteratorVaultBuilder<F> for I
+impl<N, I> IteratorVaultBuilder<N> for I
 where
-    F: Note,
-    I: Iterator<Item = F>,
+    N: Note,
+    I: Iterator<Item = N>,
 {
 }
 
+/// Trait for build [`Vault`] from parallel iterator
+#[cfg_attr(docsrs, doc(cfg(feature = "rayon")))]
 #[cfg(feature = "rayon")]
 pub trait ParallelIteratorVaultBuilder<F = NoteOnDisk>:
     rayon::iter::ParallelIterator<Item = F>
 where
     F: Note + Send,
 {
+    /// Build [`Vault`] from parallel iterator
+    #[cfg_attr(docsrs, doc(cfg(feature = "rayon")))]
     fn build_vault(self, options: &VaultOptions) -> Result<Vault<F>, Error> {
         Vault::par_build_vault(self, options)
     }

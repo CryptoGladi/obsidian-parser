@@ -1,4 +1,10 @@
 //! On-disk representation of an Obsidian note file with cache
+//!
+//! # Warning
+//! **It is not thread-safe!**
+//! Use [`NoteOnceLock`]
+//!
+//! [`NoteOnceLock`]: crate::note::note_once_lock::NoteOnceLock
 
 use crate::note::parser::{self, ResultParse, parse_note};
 use crate::note::{DefaultProperties, Note, NoteRead};
@@ -11,6 +17,12 @@ use std::path::PathBuf;
 use thiserror::Error;
 
 /// On-disk representation of an Obsidian note file with cache
+///
+/// # Warning
+/// **It is not thread-safe!**
+/// Use [`NoteOnceLock`]
+///
+/// [`NoteOnceLock`]: crate::note::note_once_lock::NoteOnceLock
 #[derive(Debug, Default, PartialEq, Eq, Clone)]
 pub struct NoteOnceCell<T = DefaultProperties>
 where
@@ -26,6 +38,7 @@ where
     properties: OnceCell<Option<T>>,
 }
 
+/// Errors for [`NoteOnceCell`]
 #[derive(Debug, Error)]
 pub enum Error {
     /// I/O operation failed (file reading, directory traversal, etc.)
@@ -83,9 +96,9 @@ where
     /// Parses YAML frontmatter directly from disk
     ///
     /// # Errors
-    /// - If properties can't be deserialized
-    /// - If file doesn't exist
-    /// - On filesystem errors
+    /// - [`Error::Yaml`] if properties can't be deserialized
+    /// - [`Error::IsNotFile`] If file doesn't exist
+    /// - [`Error::IO`] on filesystem error
     fn properties(&self) -> Result<Option<Cow<'_, T>>, Error> {
         #[cfg(feature = "logging")]
         log::trace!("Get properties from file: `{}`", self.path.display());
@@ -124,8 +137,7 @@ where
     /// Returns the note's content body (without frontmatter)
     ///
     /// # Errors
-    /// - If file doesn't exist
-    /// - On filesystem errors
+    /// - [`Error::IO`] on filesystem error
     ///
     /// # Performance
     /// Performs disk read on every call. Suitable for:
@@ -168,6 +180,7 @@ where
         Ok(Cow::Owned(result))
     }
 
+    /// Get path to note
     #[inline]
     fn path(&self) -> Option<Cow<'_, Path>> {
         Some(Cow::Borrowed(&self.path))
@@ -179,12 +192,18 @@ where
     T: DeserializeOwned + Clone,
 {
     /// Creates instance from [`std::io::Read`]
+    ///
+    /// # Warning
+    /// Only put path to struct!
     #[inline]
     fn from_reader(_reader: &mut impl Read, path: Option<impl AsRef<Path>>) -> Result<Self, Error> {
         Self::from_string("", path)
     }
 
     /// Creates instance from path
+    ///
+    /// # Warning
+    /// Only put path to struct!
     fn from_file(path: impl AsRef<Path>) -> Result<Self, Error> {
         let path = path.as_ref().to_path_buf();
 
@@ -201,6 +220,7 @@ where
 
     /// Creates instance from text (requires path!)
     ///
+    /// # Warning
     /// Dont use this function. Use `from_file`
     #[inline]
     fn from_string(

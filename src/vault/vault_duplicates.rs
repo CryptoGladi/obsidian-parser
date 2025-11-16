@@ -1,9 +1,11 @@
+//! Found duplication in vault
+
 use super::Vault;
 use crate::note::Note;
 
-fn get_duplicates<'a, F>(sorted_notes: &[&'a F]) -> Vec<&'a F>
+fn get_duplicates<'a, N>(sorted_notes: &[&'a N]) -> Vec<&'a N>
 where
-    F: Note,
+    N: Note,
 {
     let mut duplicated = Vec::new();
     let mut add_two = true;
@@ -38,7 +40,7 @@ where
     /// Operates in O(n log n) time for large vaults
     ///
     /// # Other
-    /// See [`check_unique_note_name`](Vault::check_unique_note_name)
+    /// See [`have_unique_note_by_name`](Vault::have_duplicates_notes_by_name)
     #[must_use]
     pub fn get_duplicates_notes_by_name(&self) -> Vec<&F> {
         #[cfg(feature = "logging")]
@@ -63,13 +65,13 @@ where
         duplicated_notes
     }
 
-    /// Returns duplicated note name
+    /// Parallel returns duplicated note name
     ///
     /// # Performance
     /// Operates in O(n log n) time for large vaults
     ///
     /// # Other
-    /// See [`check_unique_note_name`](Vault::check_unique_note_name)
+    /// See [`par_have_unique_note_by_name`](Vault::par_have_duplicates_notes_by_name)
     #[cfg(feature = "rayon")]
     #[must_use]
     pub fn par_get_duplicates_notes_by_name<'a>(&'a self) -> Vec<&'a F>
@@ -100,21 +102,31 @@ where
         duplicated_notes
     }
 
-    /// Checks if all note filenames in the vault are unique
+    /// Checks if all note name in the vault are unique
     ///
     /// # Returns
-    /// `true` if all filenames are unique, `false` otherwise
+    /// `true` if all note name are unique, `false` otherwise
     ///
     /// # Performance
     /// Operates in O(n) time for large vaults
     ///
     /// # Other
-    /// See [`get_duplicates_notes`](Vault::get_duplicates_notes)
+    /// See [`get_duplicates_notes_by_name`](Vault::get_duplicates_notes_by_name)
     #[must_use]
     pub fn have_duplicates_notes_by_name(&self) -> bool {
         !self.get_duplicates_notes_by_name().is_empty()
     }
 
+    /// Parallel checks if all note name in the vault are unique
+    ///
+    /// # Returns
+    /// `true` if all note name are unique, `false` otherwise
+    ///
+    /// # Performance
+    /// Operates in O(n) time for large vaults
+    ///
+    /// # Other
+    /// See [`par_get_duplicates_notes_by_name`](Vault::par_get_duplicates_notes_by_name)
     #[must_use]
     #[cfg(feature = "rayon")]
     pub fn par_have_duplicates_notes_by_name<'a>(&'a self) -> bool
@@ -124,6 +136,7 @@ where
         !self.par_get_duplicates_notes_by_name().is_empty()
     }
 
+    /// Get duplicates by content
     #[cfg(feature = "digest")]
     #[cfg_attr(docsrs, doc(cfg(feature = "digest")))]
     pub fn get_duplicates_notes_by_content<D>(&self) -> Result<Vec<&F>, F::Error>
@@ -173,6 +186,7 @@ where
         Ok(duplicated_notes)
     }
 
+    /// Check have duplicates notes by content
     #[cfg(feature = "digest")]
     #[cfg_attr(docsrs, doc(cfg(feature = "digest")))]
     pub fn have_duplicates_notes_by_content<D>(&self) -> Result<bool, F::Error>

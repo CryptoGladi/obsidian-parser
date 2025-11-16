@@ -4,6 +4,7 @@ pub mod note_default;
 pub mod note_in_memory;
 pub mod note_on_disk;
 pub mod note_once_cell;
+pub mod note_once_lock;
 pub mod note_read;
 pub mod note_read_write;
 pub mod note_write;
@@ -42,6 +43,7 @@ pub(crate) type DefaultProperties = HashMap<String, serde_yml::Value>;
 /// # Other
 /// * To open and read [`Note`] to a file, use the [`NoteRead`] trait.
 /// * To write and modify [`Note`] to a file, use the [`NoteWrite`] trait.
+/// * To read and write [`Note`] to a file, use the [`NoteReadWrite`] trait.
 pub trait Note: Sized {
     /// Frontmatter properties type
     type Properties: Clone;
@@ -52,9 +54,6 @@ pub trait Note: Sized {
     /// Returns the parsed properties of frontmatter
     ///
     /// Returns [`None`] if the note has no properties
-    ///
-    /// # Errors
-    /// Usually errors are related to [`Error::Io`]
     fn properties(&self) -> Result<Option<Cow<'_, Self::Properties>>, Self::Error>;
 
     /// Returns the main content body of the note (excluding frontmatter)
@@ -62,9 +61,6 @@ pub trait Note: Sized {
     /// # Implementation Notes
     /// - Strips YAML frontmatter if present
     /// - Preserves original formatting and whitespace
-    ///
-    /// # Errors
-    /// Usually errors are related to [`Error::Io`]
     fn content(&self) -> Result<Cow<'_, str>, Self::Error>;
 
     /// Returns the source file path if available

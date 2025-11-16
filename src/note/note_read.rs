@@ -11,9 +11,6 @@ where
     Self::Error: From<std::io::Error>,
 {
     /// Parses an Obsidian note from a reader
-    ///
-    /// # Errors
-    /// - [`Error::Io`] for filesystem errors
     fn from_reader(
         read: &mut impl Read,
         path: Option<impl AsRef<Path>>,
@@ -34,9 +31,6 @@ where
     ///
     /// # Arguments
     /// - `path`: Filesystem path to markdown file
-    ///
-    /// # Errors
-    /// - [`Error::Io`] for filesystem errors
     fn from_file(path: impl AsRef<Path>) -> Result<Self, Self::Error> {
         let path_buf = path.as_ref().to_path_buf();
 
@@ -52,10 +46,6 @@ where
     /// # Arguments
     /// - `raw_text`: Raw markdown content with optional YAML frontmatter
     /// - `path`: Optional source path for reference
-    ///
-    /// # Errors
-    /// - [`Error::InvalidFormat`] for malformed frontmatter
-    /// - [`Error::Yaml`] for invalid YAML syntax
     fn from_string(
         raw_text: impl AsRef<str>,
         path: Option<impl AsRef<Path>>,

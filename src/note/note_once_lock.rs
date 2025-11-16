@@ -1,53 +1,40 @@
-//! On-disk representation of an Obsidian note file
+//! On-disk representation of an Obsidian note file with cache
+//!
+//! # Other
+//! If we not use thread-safe, use [`NoteOnceCell`]
+//!
+//! [`NoteOnceCell`]: crate::note::note_once_cell::NoteOnceCell
 
 use crate::note::parser::{self, ResultParse, parse_note};
 use crate::note::{DefaultProperties, Note, NoteRead};
 use serde::de::DeserializeOwned;
 use std::borrow::Cow;
 use std::io::Read;
-use std::marker::PhantomData;
-use std::path::Path;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 use thiserror::Error;
 
-/// On-disk representation of an Obsidian note file
-///
-/// Optimized for vault operations where:
-/// 1. Memory efficiency is critical (large vaults)
-/// 2. Storage is fast (SSD/NVMe)
-/// 3. Content is accessed infrequently
-///
-/// # Tradeoffs vs `NoteInMemory`
-/// | Characteristic       | [`NoteOnDisk`]        | [`NoteInMemory`]          |
-/// |----------------------|-------------------------|-----------------------------|
-/// | Memory usage         | **Minimal** (~24 bytes) | High (content + properties) |
-/// | File access          | On-demand               | Preloaded                   |
-/// | Best for             | SSD-based vaults        | RAM-heavy workflows         |
-/// | Content access cost  | Disk read               | Zero cost                   |
-///
-/// # Recommendation
-/// Prefer `NoteOnDisk` for vault operations on modern hardware. The combination of
-/// SSD speeds and Rust's efficient I/O makes this implementation ideal for:
-/// - Large vaults (1000+ files)
-/// - Graph processing
+/// On-disk representation of an Obsidian note file with cache
 ///
 /// # Warning
-/// Requires **persistent file access** throughout the object's lifetime
-///
-/// [`NoteInMemory`]: crate::note::note_in_memory::NoteInMemory
+/// **It is not thread-safe!**
+/// Use [`NoteOnceLock`]
 #[derive(Debug, Default, PartialEq, Eq, Clone)]
-pub struct NoteOnDisk<T = DefaultProperties>
+pub struct NoteOnceLock<T = DefaultProperties>
 where
     T: Clone + DeserializeOwned,
 {
     /// Absolute path to the source Markdown file
     path: PathBuf,
 
-    /// For ignore `T`
-    phantom: PhantomData<T>,
+    /// Markdown content body (without frontmatter)
+    content: OnceLock<String>,
+
+    /// Parsed frontmatter properties
+    properties: OnceLock<Option<T>>,
 }
 
-/// Errors for [`NoteOnDisk`]
+/// Errors for [`NoteOnceLock`]
 #[derive(Debug, Error)]
 pub enum Error {
     /// I/O operation failed (file reading, directory traversal, etc.)
@@ -95,7 +82,7 @@ pub enum Error {
     IsNotFile(PathBuf),
 }
 
-impl<T> Note for NoteOnDisk<T>
+impl<T> Note for NoteOnceLock<T>
 where
     T: DeserializeOwned + Clone,
 {
@@ -112,6 +99,10 @@ where
         #[cfg(feature = "logging")]
         log::trace!("Get properties from file: `{}`", self.path.display());
 
+        if let Some(properties) = self.properties.get() {
+            return Ok(properties.as_ref().map(|value| Cow::Borrowed(value)));
+        }
+
         let data = std::fs::read(&self.path)?;
 
         // SAFETY: Notes files in Obsidian (`*.md`) ensure that the file is encoded in UTF-8
@@ -125,7 +116,7 @@ where
                 #[cfg(feature = "logging")]
                 log::trace!("Frontmatter detected, parsing properties");
 
-                Some(Cow::Owned(serde_yml::from_str(properties)?))
+                Some(serde_yml::from_str(properties)?)
             }
             ResultParse::WithoutProperties => {
                 #[cfg(feature = "logging")]
@@ -135,7 +126,8 @@ where
             }
         };
 
-        Ok(result)
+        let _ = self.properties.set(result.clone()); // already check
+        Ok(result.map(|value| Cow::Owned(value)))
     }
 
     /// Returns the note's content body (without frontmatter)
@@ -152,6 +144,10 @@ where
     fn content(&self) -> Result<Cow<'_, str>, Error> {
         #[cfg(feature = "logging")]
         log::trace!("Get content from file: `{}`", self.path.display());
+
+        if let Some(content) = self.content.get() {
+            return Ok(Cow::Borrowed(content));
+        }
 
         let data = std::fs::read(&self.path)?;
 
@@ -176,6 +172,7 @@ where
             }
         };
 
+        let _ = self.content.set(result.clone()); // already check
         Ok(Cow::Owned(result))
     }
 
@@ -186,7 +183,7 @@ where
     }
 }
 
-impl<T> NoteRead for NoteOnDisk<T>
+impl<T> NoteRead for NoteOnceLock<T>
 where
     T: DeserializeOwned + Clone,
 {
@@ -212,7 +209,8 @@ where
 
         Ok(Self {
             path,
-            phantom: PhantomData,
+            content: OnceLock::default(),
+            properties: OnceLock::default(),
         })
     }
 
@@ -242,20 +240,20 @@ mod tests {
     use std::io::Write;
     use tempfile::NamedTempFile;
 
-    impl_all_tests_flush!(NoteOnDisk);
-    impl_test_for_note!(impl_from_file, from_file, NoteOnDisk);
+    impl_all_tests_flush!(NoteOnceLock);
+    impl_test_for_note!(impl_from_file, from_file, NoteOnceLock);
 
     impl_test_for_note!(
         impl_from_file_with_unicode,
         from_file_with_unicode,
-        NoteOnDisk
+        NoteOnceLock
     );
 
     #[cfg_attr(feature = "logging", test_log::test)]
     #[cfg_attr(not(feature = "logging"), test)]
     #[should_panic]
     fn use_from_string_without_path() {
-        NoteOnDisk::from_string_default("", None::<&str>).unwrap();
+        NoteOnceLock::from_string_default("", None::<&str>).unwrap();
     }
 
     #[cfg_attr(feature = "logging", test_log::test)]
@@ -264,14 +262,14 @@ mod tests {
     fn use_from_file_with_path_not_file() {
         let temp_dir = tempfile::tempdir().unwrap();
 
-        NoteOnDisk::from_file_default(temp_dir.path()).unwrap();
+        NoteOnceLock::from_file_default(temp_dir.path()).unwrap();
     }
 
     #[cfg_attr(feature = "logging", test_log::test)]
     #[cfg_attr(not(feature = "logging"), test)]
     fn get_path() {
         let test_file = NamedTempFile::new().unwrap();
-        let file = NoteOnDisk::from_file_default(test_file.path()).unwrap();
+        let file = NoteOnceLock::from_file_default(test_file.path()).unwrap();
 
         assert_eq!(file.path().unwrap(), test_file.path());
         assert_eq!(file.path, test_file.path());
@@ -284,7 +282,7 @@ mod tests {
         let mut test_file = NamedTempFile::new().unwrap();
         test_file.write_all(test_data.as_bytes()).unwrap();
 
-        let file = NoteOnDisk::from_file_default(test_file.path()).unwrap();
+        let file = NoteOnceLock::from_file_default(test_file.path()).unwrap();
         assert_eq!(file.content().unwrap(), test_data);
     }
 
@@ -295,7 +293,7 @@ mod tests {
         let mut test_file = NamedTempFile::new().unwrap();
         test_file.write_all(test_data.as_bytes()).unwrap();
 
-        let file = NoteOnDisk::from_file_default(test_file.path()).unwrap();
+        let file = NoteOnceLock::from_file_default(test_file.path()).unwrap();
         let properties = file.properties().unwrap().unwrap();
 
         assert_eq!(file.content().unwrap(), "DATA");
@@ -309,7 +307,7 @@ mod tests {
         let mut test_file = NamedTempFile::new().unwrap();
         test_file.write_all(test_data.as_bytes()).unwrap();
 
-        let file = NoteOnDisk::from_read_default(
+        let file = NoteOnceLock::from_read_default(
             &mut File::open(test_file.path()).unwrap(),
             Some(test_file.path()),
         )
@@ -329,8 +327,10 @@ mod tests {
         let mut test_file = NamedTempFile::new().unwrap();
         test_file.write_all(test_data.as_bytes()).unwrap();
 
-        let _file =
-            NoteOnDisk::from_read_default(&mut File::open(test_file.path()).unwrap(), None::<&str>)
-                .unwrap();
+        let _file = NoteOnceLock::from_read_default(
+            &mut File::open(test_file.path()).unwrap(),
+            None::<&str>,
+        )
+        .unwrap();
     }
 }

@@ -1,3 +1,5 @@
+//! impl parser for Obsidian notes
+
 use thiserror::Error;
 
 /// Parses Obsidian-style links in note content
@@ -35,6 +37,7 @@ pub fn parse_links(text: &str) -> impl Iterator<Item = &str> {
 }
 
 #[derive(Debug, PartialEq, Eq)]
+#[allow(missing_docs)]
 pub enum ResultParse<'a> {
     WithProperties {
         content: &'a str,
@@ -43,12 +46,15 @@ pub enum ResultParse<'a> {
     WithoutProperties,
 }
 
+/// Errors for [`parse_note`]
 #[derive(Debug, Error)]
 pub enum Error {
+    /// Not found closer in yanl like `---`
     #[error("Not found closer in yaml like `---`")]
     NotFoundCloser,
 }
 
+/// Parse obsidian note
 pub fn parse_note(raw_text: &str) -> Result<ResultParse<'_>, Error> {
     let have_start_properties = raw_text
         .lines()

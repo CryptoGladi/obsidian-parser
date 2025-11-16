@@ -38,7 +38,7 @@ fn main() {
             }
         });
 
-    let vault: VaultOnceCell = files.build_vault(&options).unwrap();
+    let vault: VaultOnceLock = files.build_vault(&options).unwrap();
     println!("Time open vault: {:.2?}", open_vault.elapsed());
     println!("Count notes: {}", vault.count_notes());
 
@@ -48,7 +48,7 @@ fn main() {
     );
 
     let get_graph = Instant::now();
-    let ungraph = vault.get_ungraph().unwrap();
+    let ungraph = vault.par_get_ungraph().unwrap();
 
     println!("Time get graph: {:.2?}", get_graph.elapsed());
 
@@ -65,8 +65,5 @@ fn main() {
         .node_indices()
         .max_by_key(|n| ungraph.edges(*n).count())
         .unwrap();
-    println!(
-        "Knowledge hub in ungraph: {:?}",
-        ungraph[most_connected].path()
-    );
+    println!("Knowledge hub in ungraph: {:?}", ungraph[most_connected]);
 }

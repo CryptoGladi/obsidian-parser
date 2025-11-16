@@ -82,16 +82,19 @@ where
     type Properties = T;
     type Error = self::Error;
 
+    /// Get [`Self::Properties`]
     #[inline]
     fn properties(&self) -> Result<Option<Cow<'_, T>>, Self::Error> {
         Ok(self.properties.as_ref().map(|p| Cow::Borrowed(p)))
     }
 
+    /// Get contents
     #[inline]
     fn content(&self) -> Result<Cow<'_, str>, Self::Error> {
         Ok(Cow::Borrowed(&self.content))
     }
 
+    /// Get path to file
     #[inline]
     fn path(&self) -> Option<Cow<'_, Path>> {
         self.path.as_ref().map(|p| Cow::Borrowed(p.as_path()))

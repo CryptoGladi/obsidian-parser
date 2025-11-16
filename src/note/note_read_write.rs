@@ -1,8 +1,11 @@
+//! Module for impl [`NoteReadWrite`]
+
 use super::{NoteRead, NoteWrite};
 use crate::note::parser;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
+/// Trait for unification [`NoteRead`] and [`NoteWrite`]
 pub trait NoteReadWrite: NoteRead + NoteWrite
 where
     Self::Properties: Serialize + DeserializeOwned,

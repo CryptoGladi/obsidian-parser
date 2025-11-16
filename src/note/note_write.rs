@@ -14,9 +14,6 @@ where
     /// Flush only `content`
     ///
     /// Ignore if path is `None`
-    ///
-    /// # Errors
-    /// - [`Error::Io`] for filesystem errors
     fn flush_content(&self, open_option: &OpenOptions) -> Result<(), Self::Error> {
         if let Some(path) = self.path() {
             let text = std::fs::read_to_string(&path)?;
@@ -43,8 +40,6 @@ where
     /// Flush only `content`
     ///
     /// Ignore if path is `None`
-    /// # Errors
-    /// - [`Error::Io`] for filesystem errors
     fn flush_properties(&self, open_option: &OpenOptions) -> Result<(), Self::Error> {
         if let Some(path) = self.path() {
             let text = std::fs::read_to_string(&path)?;
@@ -79,8 +74,6 @@ where
     /// Flush [`Note`] to [`Note::path`]
     ///
     /// Ignore if path is `None`
-    /// # Errors
-    /// - [`Error::Io`] for filesystem errors
     fn flush(&self, open_option: &OpenOptions) -> Result<(), Self::Error> {
         if let Some(path) = self.path() {
             let mut file = open_option.open(path)?;

@@ -22,7 +22,7 @@
 //! Enable [`petgraph`](https://docs.rs/petgraph/latest/petgraph) feature in Cargo.toml:
 //! ```toml
 //! [dependencies]
-//! obsidian-parser = { version = "0.6", features = ["petgraph"] }
+//! obsidian-parser = { version = "0.7", features = ["petgraph"] }
 //! ```
 
 mod graph_builder;
@@ -42,7 +42,7 @@ where
     F: Note,
 {
     #[cfg_attr(docsrs, doc(cfg(feature = "petgraph")))]
-    pub fn get_graph<Ty>(&self) -> Result<Graph<&F, (), Ty>, F::Error>
+    fn get_graph<Ty>(&self) -> Result<Graph<&F, (), Ty>, F::Error>
     where
         Ty: EdgeType,
     {
@@ -54,8 +54,9 @@ where
     }
 
     #[cfg_attr(docsrs, doc(cfg(feature = "petgraph")))]
+    #[cfg_attr(docsrs, doc(cfg(feature = "rayon")))]
     #[cfg(feature = "rayon")]
-    pub fn par_get_graph<Ty>(&self) -> Result<Graph<&F, (), Ty>, F::Error>
+    fn par_get_graph<Ty>(&self) -> Result<Graph<&F, (), Ty>, F::Error>
     where
         F: Send + Sync,
         F::Error: Send,
@@ -86,7 +87,18 @@ where
         self.get_graph()
     }
 
+    /// Parallel builds directed graph representing note relationships
+    ///
+    /// Edges point from source note to linked note (A → B means A links to B)
+    ///
+    /// # Performance Notes
+    /// - For vaults with 1000+ notes, enable `rayon` feature
+    /// - Uses [`NoteOnDisk`](crate::prelude::NoteOnDisk) for minimal memory footprint
+    ///
+    /// # Other
+    /// See [`par_get_ungraph`](Vault::par_get_ungraph)
     #[cfg_attr(docsrs, doc(cfg(feature = "petgraph")))]
+    #[cfg_attr(docsrs, doc(cfg(feature = "rayon")))]
     #[cfg(feature = "rayon")]
     pub fn par_get_digraph(&self) -> Result<DiGraph<&F, ()>, F::Error>
     where
@@ -110,7 +122,11 @@ where
         self.get_graph()
     }
 
+    /// Parallel builds undirected graph showing note connections
+    ///
+    /// Useful for connectivity analysis where direction doesn't matter
     #[cfg_attr(docsrs, doc(cfg(feature = "petgraph")))]
+    #[cfg_attr(docsrs, doc(cfg(feature = "rayon")))]
     #[cfg(feature = "rayon")]
     pub fn par_get_ungraph(&self) -> Result<UnGraph<&F, ()>, F::Error>
     where

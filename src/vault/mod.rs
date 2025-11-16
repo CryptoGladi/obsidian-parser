@@ -19,9 +19,7 @@ mod vault_test;
 
 use crate::note::DefaultProperties;
 use crate::note::Note;
-use crate::note::note_once_cell::NoteOnceCell;
-use crate::prelude::NoteInMemory;
-use crate::prelude::NoteOnDisk;
+use crate::prelude::{NoteInMemory, NoteOnDisk, NoteOnceCell, NoteOnceLock};
 use std::path::{Path, PathBuf};
 
 /// Vault, but used [`NoteOnDisk`]
@@ -30,6 +28,9 @@ pub type VaultOnDisk<T = DefaultProperties> = Vault<NoteOnDisk<T>>;
 /// Vault, but used [`NoteOnceCell`]
 pub type VaultOnceCell<T = DefaultProperties> = Vault<NoteOnceCell<T>>;
 
+/// Vault, but used [`NoteOnceLock`]
+pub type VaultOnceLock<T = DefaultProperties> = Vault<NoteOnceLock<T>>;
+
 /// Vault, but used [`NoteInMemory`]
 pub type VaultInMemory<T = DefaultProperties> = Vault<NoteInMemory<T>>;
 
@@ -37,36 +38,35 @@ pub type VaultInMemory<T = DefaultProperties> = Vault<NoteInMemory<T>>;
 ///
 /// Contains all parsed notes and metadata about the vault. Uses [`NoteOnDisk`] by default
 /// which is optimized for memory efficiency in large vaults.
-///
-/// # Type Parameters
-/// - `T`: Type for frontmatter properties
-/// - `F`: File representation type
 #[derive(Debug, Default, PartialEq, Eq, Clone)]
-pub struct Vault<F = NoteInMemory>
+pub struct Vault<N = NoteInMemory>
 where
-    F: Note,
+    N: Note,
 {
     /// All notes in the vault
-    notes: Vec<F>,
+    notes: Vec<N>,
 
     /// Path to vault root directory
     path: PathBuf,
 }
 
-impl<F> Vault<F>
+impl<N> Vault<N>
 where
-    F: Note,
+    N: Note,
 {
+    /// Get notes
     #[must_use]
-    pub const fn notes(&self) -> &Vec<F> {
+    pub const fn notes(&self) -> &Vec<N> {
         &self.notes
     }
 
+    /// Get count in notes from vault
     #[must_use]
     pub const fn count_notes(&self) -> usize {
         self.notes().len()
     }
 
+    /// Get path to vault
     #[must_use]
     pub fn path(&self) -> &Path {
         &self.path

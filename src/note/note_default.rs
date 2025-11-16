@@ -13,25 +13,15 @@ where
     Self::Error: From<std::io::Error>,
 {
     /// Same as [`NoteRead::from_string`] with default properties type
-    ///
-    /// # Errors
-    /// - [`Error::InvalidFormat`] for malformed frontmatter
-    /// - [`Error::Yaml`] for invalid YAML syntax
     fn from_string_default<P: AsRef<Path>>(
         text: &str,
         path: Option<P>,
     ) -> Result<Self, Self::Error>;
 
     /// Same as [`NoteRead::from_file`] with default properties type
-    ///
-    /// # Errors
-    /// - [`Error::Io`] for filesystem errors
     fn from_file_default<P: AsRef<Path>>(path: P) -> Result<Self, Self::Error>;
 
-    /// Same as [`NoteRead::from_read`] with default properties type
-    ///
-    /// # Errors
-    /// - [`Error::Io`] for filesystem errors
+    /// Same as [`NoteRead::from_reader`] with default properties type
     fn from_read_default<P: AsRef<Path>>(
         read: &mut impl Read,
         path: Option<P>,
