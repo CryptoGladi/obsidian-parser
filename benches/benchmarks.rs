@@ -63,19 +63,68 @@ fn vault_open_benchmark(c: &mut Criterion) {
 
     c.bench_function("vault_open_on_disk", |b| {
         b.iter(|| {
-            let vault: VaultOnDisk<NoteProperties> = Vault::open_ignore(black_box(path)).unwrap();
+            let options = VaultOptions::new(black_box(path));
+            let vault: VaultOnDisk<NoteProperties> = VaultBuilder::new(&options)
+                .include_hidden(true)
+                .into_iter()
+                .map(|note| note.unwrap())
+                .build_vault(&options)
+                .unwrap();
+
+            black_box(vault);
+        })
+    });
+
+    #[cfg(feature = "rayon")]
+    c.bench_function("parallel vault_open_on_disk", |b| {
+        b.iter(|| {
+            use rayon::prelude::*;
+
+            let options = VaultOptions::new(black_box(path));
+            let vault: VaultOnDisk<NoteProperties> = VaultBuilder::new(&options)
+                .include_hidden(true)
+                .into_par_iter()
+                .map(|note| note.unwrap())
+                .build_vault(&options)
+                .unwrap();
+
             black_box(vault);
         })
     });
 
     c.bench_function("vault_open_in_memory", |b| {
         b.iter(|| {
-            let vault: VaultInMemory<NoteProperties> = Vault::open_ignore(black_box(path)).unwrap();
+            let options = VaultOptions::new(black_box(path));
+            let vault: VaultInMemory<NoteProperties> = VaultBuilder::new(&options)
+                .include_hidden(true)
+                .into_iter()
+                .map(|note| note.unwrap())
+                .build_vault(&options)
+                .unwrap();
+
+            black_box(vault);
+        })
+    });
+
+    #[cfg(feature = "rayon")]
+    c.bench_function("parallel vault_open_in_memory", |b| {
+        b.iter(|| {
+            use rayon::prelude::*;
+
+            let options = VaultOptions::new(black_box(path));
+            let vault: VaultInMemory<NoteProperties> = VaultBuilder::new(&options)
+                .include_hidden(true)
+                .into_par_iter()
+                .map(|note| note.unwrap())
+                .build_vault(&options)
+                .unwrap();
+
             black_box(vault);
         })
     });
 }
 
+#[cfg(feature = "petgraph")]
 fn graph_build_benchmark(c: &mut Criterion) {
     let num_files = 1000;
     let links_per_file = 10;
@@ -83,21 +132,185 @@ fn graph_build_benchmark(c: &mut Criterion) {
     let temp_dir = generate_test_vault(num_files, links_per_file);
     let path = temp_dir.path();
 
-    let vault_on_disk: Vault<ObFileOnDisk<NoteProperties>> = Vault::open(path).unwrap();
+    let vault_on_disk = {
+        let options = VaultOptions::new(path);
+        let vault: VaultOnDisk<NoteProperties> = VaultBuilder::new(&options)
+            .include_hidden(true)
+            .into_iter()
+            .map(|note| note.unwrap())
+            .build_vault(&options)
+            .unwrap();
+
+        vault
+    };
+
     c.bench_function("graph_build_on_disk", |b| {
         b.iter(|| {
-            let graph = vault_on_disk.get_digraph();
+            let graph = vault_on_disk.get_digraph().unwrap();
             black_box(graph);
         })
     });
 
-    let vault_in_memory: Vault<ObFileInMemory<NoteProperties>> = Vault::open(path).unwrap();
-    c.bench_function("graph_build_in_memory", |b| {
+    #[cfg(feature = "rayon")]
+    c.bench_function("parallel graph_build_on_disk", |b| {
         b.iter(|| {
-            let graph = vault_in_memory.get_digraph();
+            let graph = vault_on_disk.par_get_digraph().unwrap();
             black_box(graph);
         })
     });
+
+    let vault_in_memory = {
+        let options = VaultOptions::new(path);
+        let vault: VaultInMemory<NoteProperties> = VaultBuilder::new(&options)
+            .include_hidden(true)
+            .into_iter()
+            .map(|note| note.unwrap())
+            .build_vault(&options)
+            .unwrap();
+
+        vault
+    };
+
+    c.bench_function("graph_build_in_memory", |b| {
+        b.iter(|| {
+            let graph = vault_in_memory.get_digraph().unwrap();
+            black_box(graph);
+        })
+    });
+
+    #[cfg(feature = "rayon")]
+    c.bench_function("parallel graph_build_in_memory", |b| {
+        b.iter(|| {
+            let graph = vault_in_memory.par_get_digraph().unwrap();
+            black_box(graph);
+        })
+    });
+}
+
+fn get_duplicates_by_name_benchmark(c: &mut Criterion) {
+    let num_files = 1000;
+    let links_per_file = 10;
+
+    let temp_dir = generate_test_vault(num_files, links_per_file);
+    let path = temp_dir.path();
+
+    let vault_on_disk = {
+        let options = VaultOptions::new(path);
+        let vault: VaultOnDisk<NoteProperties> = VaultBuilder::new(&options)
+            .include_hidden(true)
+            .into_iter()
+            .map(|note| note.unwrap())
+            .build_vault(&options)
+            .unwrap();
+
+        vault
+    };
+
+    let vault_in_memory = {
+        let options = VaultOptions::new(path);
+        let vault: VaultInMemory<NoteProperties> = VaultBuilder::new(&options)
+            .include_hidden(true)
+            .into_iter()
+            .map(|note| note.unwrap())
+            .build_vault(&options)
+            .unwrap();
+
+        vault
+    };
+
+    c.bench_function("get_duplicates_notes_by_name (VaultOnDisk)", |b| {
+        b.iter(|| {
+            let duplicated = vault_on_disk.get_duplicates_notes_by_name();
+            black_box(duplicated);
+        })
+    });
+
+    #[cfg(feature = "rayon")]
+    c.bench_function("parallel get_duplicates_notes_by_name (VaultOnDisk)", |b| {
+        b.iter(|| {
+            let duplicated = vault_on_disk.par_get_duplicates_notes_by_name();
+            black_box(duplicated);
+        })
+    });
+
+    c.bench_function("get_duplicates_notes_by_name (VaultInMemory)", |b| {
+        b.iter(|| {
+            let duplicated = vault_in_memory.get_duplicates_notes_by_name();
+            black_box(duplicated);
+        })
+    });
+
+    #[cfg(feature = "rayon")]
+    c.bench_function(
+        "parallel get_duplicates_notes_by_name (VaultInMemory)",
+        |b| {
+            b.iter(|| {
+                let duplicated = vault_in_memory.par_get_duplicates_notes_by_name();
+                black_box(duplicated);
+            })
+        },
+    );
+}
+
+#[cfg(feature = "digest")]
+fn get_duplicates_by_content_benchmark(c: &mut Criterion) {
+    use sha2::Sha256;
+
+    let num_files = 1000;
+    let links_per_file = 10;
+
+    let temp_dir = generate_test_vault(num_files, links_per_file);
+    let path = temp_dir.path();
+
+    let vault_on_disk = {
+        let options = VaultOptions::new(path);
+        let vault: VaultOnDisk<NoteProperties> = VaultBuilder::new(&options)
+            .include_hidden(true)
+            .into_iter()
+            .map(|note| note.unwrap())
+            .build_vault(&options)
+            .unwrap();
+
+        vault
+    };
+
+    let vault_in_memory = {
+        let options = VaultOptions::new(path);
+        let vault: VaultInMemory<NoteProperties> = VaultBuilder::new(&options)
+            .include_hidden(true)
+            .into_iter()
+            .map(|note| note.unwrap())
+            .build_vault(&options)
+            .unwrap();
+
+        vault
+    };
+
+    c.bench_function(
+        "get_duplicates_notes_by_content with Sha256 (VaultOnDisk)",
+        |b| {
+            b.iter(|| {
+                let duplicated = vault_on_disk
+                    .get_duplicates_notes_by_content::<Sha256>()
+                    .unwrap();
+
+                black_box(duplicated);
+            })
+        },
+    );
+
+    c.bench_function(
+        "get_duplicates_notes_by_content with Sha256 (VaultOnDisk)",
+        |b| {
+            b.iter(|| {
+                let duplicated = vault_in_memory
+                    .get_duplicates_notes_by_content::<Sha256>()
+                    .unwrap();
+
+                black_box(duplicated);
+            })
+        },
+    );
 }
 
 criterion_group! {
@@ -105,7 +318,7 @@ criterion_group! {
     config = Criterion::default()
         .sample_size(20)
         .warm_up_time(std::time::Duration::from_secs(1));
-    targets = vault_open_benchmark, graph_build_benchmark
+    targets = vault_open_benchmark, graph_build_benchmark, get_duplicates_by_name_benchmark, get_duplicates_by_content_benchmark
 }
 
 criterion_main!(benches);

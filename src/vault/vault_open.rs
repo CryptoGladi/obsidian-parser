@@ -24,7 +24,7 @@ impl VaultOptions {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct FilesBuilder<'a> {
+pub struct VaultBuilder<'a> {
     options: &'a VaultOptions,
     include_hidden: bool,
 }
@@ -41,7 +41,7 @@ fn is_md_file(path: impl AsRef<Path>) -> bool {
         .is_some_and(|p| p.eq_ignore_ascii_case("md"))
 }
 
-impl<'a> FilesBuilder<'a> {
+impl<'a> VaultBuilder<'a> {
     #[must_use]
     pub const fn new(options: &'a VaultOptions) -> Self {
         Self {
@@ -162,7 +162,7 @@ where
     }
 }
 
-pub trait IteratorFilesBuilder<F = ObFileOnDisk>: Iterator<Item = F>
+pub trait IteratorVaultBuilder<F = ObFileOnDisk>: Iterator<Item = F>
 where
     Self: Sized,
     F: ObFile,
@@ -172,7 +172,7 @@ where
     }
 }
 
-impl<F, I> IteratorFilesBuilder<F> for I
+impl<F, I> IteratorVaultBuilder<F> for I
 where
     F: ObFile,
     I: Iterator<Item = F>,
@@ -180,7 +180,7 @@ where
 }
 
 #[cfg(feature = "rayon")]
-pub trait ParallelIteratorFilesBuilder<F = ObFileOnDisk>:
+pub trait ParallelIteratorVaultBuilder<F = ObFileOnDisk>:
     rayon::iter::ParallelIterator<Item = F>
 where
     F: ObFile + Send,
@@ -191,7 +191,7 @@ where
 }
 
 #[cfg(feature = "rayon")]
-impl<F, I> ParallelIteratorFilesBuilder<F> for I
+impl<F, I> ParallelIteratorVaultBuilder<F> for I
 where
     F: ObFile + Send,
     I: rayon::iter::ParallelIterator<Item = F>,
@@ -215,7 +215,8 @@ mod tests {
         F::Properties: DeserializeOwned,
     {
         let options = VaultOptions::new(path);
-        FilesBuilder::new(&options)
+
+        VaultBuilder::new(&options)
             .include_hidden(true)
             .into_iter()
             .map(|file| file.unwrap())
@@ -232,7 +233,8 @@ mod tests {
         use rayon::prelude::*;
 
         let options = VaultOptions::new(path);
-        FilesBuilder::new(&options)
+
+        VaultBuilder::new(&options)
             .include_hidden(true)
             .into_par_iter()
             .map(|file| file.unwrap())
@@ -268,7 +270,7 @@ mod tests {
         let (path, _) = create_files_for_vault().unwrap();
 
         let options = VaultOptions::new(&path);
-        let files = FilesBuilder::new(&options)
+        let files = VaultBuilder::new(&options)
             .include_hidden(true)
             .into_iter()
             .map(|file| file.unwrap());
@@ -288,7 +290,7 @@ mod tests {
         let (path, _) = create_files_for_vault().unwrap();
 
         let options = VaultOptions::new(&path);
-        let files = FilesBuilder::new(&options)
+        let files = VaultBuilder::new(&options)
             .include_hidden(true)
             .into_par_iter()
             .filter_map(Result::ok);
@@ -332,7 +334,7 @@ mod tests {
         file.write_all(b"---").unwrap();
 
         let options = VaultOptions::new(&path);
-        let errors = FilesBuilder::new(&options)
+        let errors = VaultBuilder::new(&options)
             .include_hidden(true)
             .into_iter::<ObFileInMemory>()
             .filter_map(Result::err)
@@ -356,7 +358,7 @@ mod tests {
         file.write_all(b"---").unwrap();
 
         let options = VaultOptions::new(&path);
-        let errors = FilesBuilder::new(&options)
+        let errors = VaultBuilder::new(&options)
             .include_hidden(true)
             .into_par_iter::<ObFileInMemory>()
             .filter_map(Result::err)
@@ -379,7 +381,7 @@ mod tests {
         let options = VaultOptions::new(&path);
 
         let mut errors = Vec::new();
-        let vault = FilesBuilder::new(&options)
+        let vault = VaultBuilder::new(&options)
             .include_hidden(true)
             .into_iter::<ObFileInMemory>()
             .filter_map(|file| match file {
@@ -417,7 +419,7 @@ mod tests {
         let options = VaultOptions::new(&path);
 
         let errors = Arc::new(Mutex::new(Vec::new()));
-        let vault = FilesBuilder::new(&options)
+        let vault = VaultBuilder::new(&options)
             .include_hidden(true)
             .into_par_iter::<ObFileInMemory>()
             .filter_map(|file| match file {

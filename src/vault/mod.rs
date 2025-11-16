@@ -156,7 +156,7 @@ where
 mod tests {
     use super::*;
     use crate::{
-        prelude::{FilesBuilder, IteratorFilesBuilder, VaultOptions},
+        prelude::{IteratorVaultBuilder, VaultBuilder, VaultOptions},
         vault::vault_test::create_files_for_vault,
     };
 
@@ -166,7 +166,7 @@ mod tests {
         let (path, files) = create_files_for_vault().unwrap();
 
         let options = VaultOptions::new(&path);
-        let vault: VaultInMemory = FilesBuilder::new(&options)
+        let vault: VaultInMemory = VaultBuilder::new(&options)
             .include_hidden(true)
             .into_iter()
             .map(|file| file.unwrap())
@@ -182,7 +182,7 @@ mod tests {
         let (path, files) = create_files_for_vault().unwrap();
 
         let options = VaultOptions::new(&path);
-        let vault: VaultInMemory = FilesBuilder::new(&options)
+        let vault: VaultInMemory = VaultBuilder::new(&options)
             .include_hidden(true)
             .into_iter()
             .map(|file| file.unwrap())
@@ -198,7 +198,7 @@ mod tests {
         let (path, _) = create_files_for_vault().unwrap();
 
         let options = VaultOptions::new(&path);
-        let vault: VaultInMemory = FilesBuilder::new(&options)
+        let vault: VaultInMemory = VaultBuilder::new(&options)
             .include_hidden(true)
             .into_iter()
             .map(|file| file.unwrap())

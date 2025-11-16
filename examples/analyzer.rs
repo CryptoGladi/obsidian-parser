@@ -1,5 +1,5 @@
 use clap::Parser;
-use obsidian_parser::{prelude::*, vault::vault_open::FilesBuilder};
+use obsidian_parser::{prelude::*, vault::vault_open::VaultBuilder};
 use petgraph::algo::connected_components;
 use rayon::prelude::*;
 use std::{path::PathBuf, time::Instant};
@@ -27,7 +27,7 @@ fn main() {
 
     let open_vault = Instant::now();
     let options = VaultOptions::new(&args.path);
-    let files = FilesBuilder::new(&options)
+    let files = VaultBuilder::new(&options)
         .include_hidden(false)
         .into_par_iter()
         .filter_map(|file| match file {
@@ -48,7 +48,8 @@ fn main() {
     );
 
     let get_graph = Instant::now();
-    let ungraph = vault.par_get_ungraph();
+    let ungraph = vault.par_get_ungraph().unwrap();
+
     println!("Time get graph: {:.2?}", get_graph.elapsed());
 
     println!("Count nodes in graph: {}", ungraph.node_count());
@@ -64,5 +65,8 @@ fn main() {
         .node_indices()
         .max_by_key(|n| ungraph.edges(*n).count())
         .unwrap();
-    println!("Knowledge hub in ungraph: {}", ungraph[most_connected]);
+    println!(
+        "Knowledge hub in ungraph: {:?}",
+        ungraph[most_connected].path()
+    );
 }

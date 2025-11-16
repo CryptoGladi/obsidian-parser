@@ -187,7 +187,7 @@ where
 mod tests {
     use crate::{
         obfile::{ObFile, ObFileRead},
-        prelude::{FilesBuilder, IteratorFilesBuilder, ObFileInMemory, VaultOptions},
+        prelude::{IteratorVaultBuilder, ObFileInMemory, VaultBuilder, VaultOptions},
         vault::Vault,
     };
     use serde::de::DeserializeOwned;
@@ -211,7 +211,7 @@ mod tests {
         file2.write_all(b"same text").unwrap();
 
         let options = VaultOptions::new(&temp_dir);
-        let vault = FilesBuilder::new(&options)
+        let vault = VaultBuilder::new(&options)
             .include_hidden(true)
             .into_iter()
             .map(Result::unwrap)
@@ -232,7 +232,7 @@ mod tests {
         File::create(&temp_dir.path().join("file.md")).unwrap();
 
         let options = VaultOptions::new(&temp_dir);
-        let vault = FilesBuilder::new(&options)
+        let vault = VaultBuilder::new(&options)
             .include_hidden(true)
             .into_iter()
             .map(Result::unwrap)

@@ -1,5 +1,5 @@
 use crate::{
-    prelude::{FilesBuilder, IteratorFilesBuilder, VaultOptions},
+    prelude::{IteratorVaultBuilder, VaultBuilder, VaultOptions},
     vault::Vault,
 };
 use std::{fs::File, io::Write};
@@ -34,7 +34,7 @@ pub(crate) fn create_test_vault() -> Result<(Vault, TempDir, Vec<File>), std::io
     let (path, files) = create_files_for_vault()?;
 
     let options = VaultOptions::new(&path);
-    let vault = FilesBuilder::new(&options)
+    let vault = VaultBuilder::new(&options)
         .into_iter()
         .map(|file| file.unwrap())
         .build_vault(&options)
