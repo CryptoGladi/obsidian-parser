@@ -1,18 +1,18 @@
-use super::{ObFileRead, ObFileWrite};
-use crate::obfile::parser;
+use super::{NoteRead, NoteWrite};
+use crate::note::parser;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
-pub trait ObFileReadWrite: ObFileRead + ObFileWrite
+pub trait NoteReadWrite: NoteRead + NoteWrite
 where
     Self::Properties: Serialize + DeserializeOwned,
     Self::Error: From<std::io::Error> + From<serde_yml::Error> + From<parser::Error>,
 {
 }
 
-impl<T> ObFileReadWrite for T
+impl<T> NoteReadWrite for T
 where
-    T: ObFileRead + ObFileWrite,
+    T: NoteRead + NoteWrite,
     T::Properties: Serialize + DeserializeOwned,
     T::Error: From<std::io::Error> + From<serde_yml::Error> + From<parser::Error>,
 {

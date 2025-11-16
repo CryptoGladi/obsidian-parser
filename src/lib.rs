@@ -41,7 +41,7 @@
 #![allow(clippy::missing_errors_doc)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
-pub mod obfile;
+pub mod note;
 pub mod prelude;
 pub mod vault;
 

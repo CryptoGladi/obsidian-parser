@@ -1,19 +1,19 @@
 use super::index::Index;
-use crate::obfile::parser::parse_links;
-use crate::{obfile::ObFile, vault::Vault};
+use crate::note::parser::parse_links;
+use crate::{note::Note, vault::Vault};
 use petgraph::{EdgeType, Graph};
 use std::path::Path;
 
-pub(crate) struct GraphBuilder<'a, F>
+pub struct GraphBuilder<'a, F>
 where
-    F: ObFile,
+    F: Note,
 {
     vault: &'a Vault<F>,
 }
 
 impl<'a, F> GraphBuilder<'a, F>
 where
-    F: ObFile,
+    F: Note,
 {
     pub(crate) const fn new(vault: &'a Vault<F>) -> Self {
         Self { vault }
@@ -40,7 +40,7 @@ where
     }
 
     #[cfg(feature = "rayon")]
-    pub(crate) fn par_build<Ty>(mut self) -> Result<Graph<&'a F, (), Ty>, F::Error>
+    pub(crate) fn par_build<Ty>(self) -> Result<Graph<&'a F, (), Ty>, F::Error>
     where
         F: Send + Sync,
         F::Error: Send,
@@ -118,7 +118,7 @@ where
     /// Uses parallel processing when `rayon` feature is enabled
     #[cfg(feature = "rayon")]
     fn par_create_edges<Ty>(
-        &mut self,
+        &self,
         index: &Index,
         graph: &mut Graph<&'a F, (), Ty>,
     ) -> Result<(), F::Error>
@@ -135,6 +135,7 @@ where
         #[cfg(feature = "logging")]
         log::debug!("Using parallel edge builder (rayon enabled)");
 
+        #[allow(clippy::items_after_statements)]
         enum Data<'a, E: Send> {
             Successful(Vec<(&'a NodeIndex, NodeIndex)>),
             Error(E),
@@ -154,7 +155,7 @@ where
                         let mut result = Vec::with_capacity(10 * CHUNK_SIZE);
 
                         for note in notes {
-                            let path = Self::relative_path(&note, strip_prefix);
+                            let path = Self::relative_path(note, strip_prefix);
 
                             if let Some(node_to) = index.full(&path) {
                                 match note.content() {
@@ -162,7 +163,7 @@ where
                                         .filter_map(|link| index.get(link))
                                         .map(|node_from| (node_to, *node_from))
                                         .for_each(|x| result.push(x)),
-                                    Err(error) => tx.send(Data::Error(error)).unwrap(),
+                                    Err(error) => tx.send(Data::Error(error)).expect("Send error"),
                                 }
                             }
                         }
@@ -176,9 +177,9 @@ where
                 while let Ok(recv) = rx.recv() {
                     match recv {
                         Data::Successful(notes) => {
-                            notes.into_iter().for_each(|(note_to, note_from)| {
+                            for (note_to, note_from) in notes {
                                 graph.add_edge(*note_to, note_from, ());
-                            })
+                            }
                         }
                         Data::Error(error) => result = Err(error),
                     }

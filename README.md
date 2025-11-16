@@ -24,7 +24,7 @@ use obsidian_parser::prelude::*;
 use serde::Deserialize;
 
 // Parse single file with `HashMap`
-let note_hashmap = ObFileInMemory::from_file_default("note.md").unwrap();
+let note_hashmap = NoteInMemory::from_file_default("note.md").unwrap();
 
 println!("Content: {}", note_hashmap.content().unwrap());
 println!("Properties: {:#?}", note_hashmap.properties().unwrap().unwrap());
@@ -37,7 +37,7 @@ struct NoteProperties {
      priority: u8,
  }
 
-let note_with_serde: ObFileInMemory<NoteProperties> = ObFileInMemory::from_file("note.md").unwrap();
+let note_with_serde: NoteInMemory<NoteProperties> = NoteInMemory::from_file("note.md").unwrap();
 ```
 * Vault
 ```rust

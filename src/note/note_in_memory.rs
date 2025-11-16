@@ -1,7 +1,7 @@
 //! In-memory representation of an Obsidian note file
 
-use super::{DefaultProperties, ObFile, ObFileRead};
-use crate::obfile::parser::{self, ResultParse, parse_obfile};
+use super::{DefaultProperties, Note, NoteRead};
+use crate::note::parser::{self, ResultParse, parse_note};
 use serde::de::DeserializeOwned;
 use std::{
     borrow::Cow,
@@ -21,11 +21,11 @@ use thiserror::Error;
 /// - Uses ~2x memory of original file size (UTF-8 + deserialized properties)
 /// - Preferred for small-to-medium vaults (<10k notes)
 ///
-/// For large vaults or read-heavy workflows, consider [`ObFileOnDisk`].
+/// For large vaults or read-heavy workflows, consider [`NoteOnDisk`].
 ///
-/// [`ObFileOnDisk`]: crate::obfile::obfile_on_disk::ObFileOnDisk
+/// [`NoteOnDisk`]: crate::note::note_on_disk::NoteOnDisk
 #[derive(Debug, Default, PartialEq, Eq, Clone)]
-pub struct ObFileInMemory<T = DefaultProperties>
+pub struct NoteInMemory<T = DefaultProperties>
 where
     T: Clone,
 {
@@ -39,7 +39,7 @@ where
     properties: Option<T>,
 }
 
-/// Errors in [`ObFileInMemory`]
+/// Errors in [`NoteInMemory`]
 #[derive(Debug, Error)]
 pub enum Error {
     /// I/O operation failed (file reading, directory traversal, etc.)
@@ -75,7 +75,7 @@ pub enum Error {
     Yaml(#[from] serde_yml::Error),
 }
 
-impl<T> ObFile for ObFileInMemory<T>
+impl<T> Note for NoteInMemory<T>
 where
     T: Clone,
 {
@@ -98,7 +98,7 @@ where
     }
 }
 
-impl<T> ObFileRead for ObFileInMemory<T>
+impl<T> NoteRead for NoteInMemory<T>
 where
     T: DeserializeOwned + Clone,
 {
@@ -132,7 +132,7 @@ where
     /// ---
     /// Content"#;
     ///
-    /// let file: ObFileInMemory<NoteProperties> = ObFileInMemory::from_string(note, None::<&str>).unwrap();
+    /// let file: NoteInMemory<NoteProperties> = NoteInMemory::from_string(note, None::<&str>).unwrap();
     /// let properties = file.properties().unwrap().unwrap();
     ///
     /// assert_eq!(properties.title, "Example");
@@ -154,7 +154,7 @@ where
                 .unwrap_or_default()
         );
 
-        match parse_obfile(raw_text)? {
+        match parse_note(raw_text)? {
             ResultParse::WithProperties {
                 content,
                 properties,
@@ -185,15 +185,15 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::obfile::{
-        obfile_read::tests::{
+    use crate::note::{
+        note_read::tests::{
             impl_all_tests_from_file, impl_all_tests_from_reader, impl_all_tests_from_string,
         },
-        obfile_write::tests::impl_all_tests_flush,
+        note_write::tests::impl_all_tests_flush,
     };
 
-    impl_all_tests_from_reader!(ObFileInMemory);
-    impl_all_tests_from_string!(ObFileInMemory);
-    impl_all_tests_from_file!(ObFileInMemory);
-    impl_all_tests_flush!(ObFileInMemory);
+    impl_all_tests_from_reader!(NoteInMemory);
+    impl_all_tests_from_string!(NoteInMemory);
+    impl_all_tests_from_file!(NoteInMemory);
+    impl_all_tests_flush!(NoteInMemory);
 }

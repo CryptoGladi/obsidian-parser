@@ -1,12 +1,12 @@
-//! Impl trait [`ObFileWrite`]
+//! Impl trait [`NoteWrite`]
 
-use super::{ObFile, OpenOptions};
-use crate::obfile::parser;
+use super::{Note, OpenOptions};
+use crate::note::parser;
 use serde::Serialize;
 use std::io::Write;
 
-/// [`ObFile`] support write operation
-pub trait ObFileWrite: ObFile
+/// [`Note`] support write operation
+pub trait NoteWrite: Note
 where
     Self::Properties: Serialize,
     Self::Error: From<std::io::Error> + From<serde_yml::Error> + From<parser::Error>,
@@ -20,7 +20,7 @@ where
     fn flush_content(&self, open_option: &OpenOptions) -> Result<(), Self::Error> {
         if let Some(path) = self.path() {
             let text = std::fs::read_to_string(&path)?;
-            let parsed = parser::parse_obfile(&text)?;
+            let parsed = parser::parse_note(&text)?;
 
             let mut file = open_option.open(path)?;
 
@@ -48,7 +48,7 @@ where
     fn flush_properties(&self, open_option: &OpenOptions) -> Result<(), Self::Error> {
         if let Some(path) = self.path() {
             let text = std::fs::read_to_string(&path)?;
-            let parsed = parser::parse_obfile(&text)?;
+            let parsed = parser::parse_note(&text)?;
 
             let mut file = open_option.open(path)?;
 
@@ -76,7 +76,7 @@ where
         Ok(())
     }
 
-    /// Flush [`ObFile`] to [`ObFile::path`]
+    /// Flush [`Note`] to [`Note::path`]
     ///
     /// Ignore if path is `None`
     /// # Errors
@@ -102,7 +102,7 @@ where
     }
 }
 
-impl<T: ObFile> ObFileWrite for T
+impl<T: Note> NoteWrite for T
 where
     T::Properties: Serialize,
     Self::Error: From<std::io::Error> + From<serde_yml::Error> + From<super::parser::Error>,
@@ -112,7 +112,7 @@ where
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::obfile::{DefaultProperties, ObFileReadWrite};
+    use crate::note::{DefaultProperties, NoteReadWrite};
     use tempfile::NamedTempFile;
 
     const TEST_DATA: &str = "---\n\
@@ -125,7 +125,7 @@ Two test data";
 
     pub(crate) fn flush_properties<T>() -> Result<(), T::Error>
     where
-        T: ObFileReadWrite<Properties = DefaultProperties>,
+        T: NoteReadWrite<Properties = DefaultProperties>,
         T::Error: From<std::io::Error> + From<serde_yml::Error> + From<parser::Error>,
     {
         let mut test_file = NamedTempFile::new().unwrap();
@@ -148,7 +148,7 @@ Two test data";
 
     pub(crate) fn flush_content<T>() -> Result<(), T::Error>
     where
-        T: ObFileReadWrite<Properties = DefaultProperties>,
+        T: NoteReadWrite<Properties = DefaultProperties>,
         T::Error: From<std::io::Error> + From<serde_yml::Error> + From<parser::Error>,
     {
         let mut test_file = NamedTempFile::new().unwrap();
@@ -170,7 +170,7 @@ Two test data";
 
     pub(crate) fn flush<T>() -> Result<(), T::Error>
     where
-        T: ObFileReadWrite<Properties = DefaultProperties>,
+        T: NoteReadWrite<Properties = DefaultProperties>,
         T::Error: From<std::io::Error> + From<serde_yml::Error> + From<parser::Error>,
     {
         let mut test_file = NamedTempFile::new().unwrap();
@@ -191,13 +191,13 @@ Two test data";
     }
 
     macro_rules! impl_all_tests_flush {
-        ($impl_obfile:path) => {
+        ($impl_note:path) => {
             #[allow(unused_imports)]
-            use $crate::obfile::obfile_write::tests::*;
+            use $crate::note::note_write::tests::*;
 
-            impl_test_for_obfile!(impl_flush, flush, $impl_obfile);
-            impl_test_for_obfile!(impl_flush_content, flush_content, $impl_obfile);
-            impl_test_for_obfile!(impl_flush_properties, flush_properties, $impl_obfile);
+            impl_test_for_note!(impl_flush, flush, $impl_note);
+            impl_test_for_note!(impl_flush_content, flush_content, $impl_note);
+            impl_test_for_note!(impl_flush_properties, flush_properties, $impl_note);
         };
     }
 

@@ -30,15 +30,15 @@ fn main() {
     let files = VaultBuilder::new(&options)
         .include_hidden(false)
         .into_par_iter()
-        .filter_map(|file| match file {
-            Ok(file) => Some(file),
+        .filter_map(|note| match note {
+            Ok(note) => Some(note),
             Err(error) => {
                 eprintln!("Parsed error: {}", error);
                 None
             }
         });
 
-    let vault: VaultOnDisk = files.build_vault(&options).unwrap();
+    let vault: VaultOnceCell = files.build_vault(&options).unwrap();
     println!("Time open vault: {:.2?}", open_vault.elapsed());
     println!("Count notes: {}", vault.count_notes());
 
@@ -48,7 +48,7 @@ fn main() {
     );
 
     let get_graph = Instant::now();
-    let ungraph = vault.par_get_ungraph().unwrap();
+    let ungraph = vault.get_ungraph().unwrap();
 
     println!("Time get graph: {:.2?}", get_graph.elapsed());
 

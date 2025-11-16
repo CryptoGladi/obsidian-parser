@@ -1,11 +1,11 @@
-//! Impl trait [`ObFileRead`]
+//! Impl trait [`NoteRead`]
 
-use super::ObFile;
+use super::Note;
 use serde::de::DeserializeOwned;
 use std::{fs::File, io::Read, path::Path};
 
-/// [`ObFile`] support read operation
-pub trait ObFileRead: ObFile
+/// [`Note`] support read operation
+pub trait NoteRead: Note
 where
     Self::Properties: DeserializeOwned,
     Self::Error: From<std::io::Error>,
@@ -66,7 +66,7 @@ where
 pub(crate) mod tests {
     use super::*;
     use crate::{
-        obfile::{DefaultProperties, parser},
+        note::{DefaultProperties, parser},
         test_utils::is_error,
     };
     use std::io::{Cursor, Write};
@@ -92,7 +92,7 @@ Two test data";
 
     fn test_data<T>(file: T) -> Result<(), T::Error>
     where
-        T: ObFileRead<Properties = DefaultProperties>,
+        T: NoteRead<Properties = DefaultProperties>,
         T::Error: From<std::io::Error>,
     {
         let properties = file.properties().unwrap().unwrap();
@@ -106,7 +106,7 @@ Two test data";
 
     fn note_name<T>(file1: T, file2: T) -> Result<(), T::Error>
     where
-        T: ObFileRead<Properties = DefaultProperties>,
+        T: NoteRead<Properties = DefaultProperties>,
         T::Error: From<std::io::Error>,
     {
         assert_eq!(file1.note_name(), None);
@@ -117,7 +117,7 @@ Two test data";
 
     fn without_properties<T>(file: T, text: &str) -> Result<(), T::Error>
     where
-        T: ObFileRead<Properties = DefaultProperties>,
+        T: NoteRead<Properties = DefaultProperties>,
         T::Error: From<std::io::Error>,
     {
         assert_eq!(file.properties().unwrap(), None);
@@ -128,7 +128,7 @@ Two test data";
 
     fn invalid_yaml<T>(result: Result<T, T::Error>) -> Result<(), T::Error>
     where
-        T: ObFileRead<Properties = DefaultProperties>,
+        T: NoteRead<Properties = DefaultProperties>,
         T::Error: From<std::io::Error>,
     {
         let error = result.err().unwrap();
@@ -139,7 +139,7 @@ Two test data";
 
     fn invalid_format<T>(result: Result<T, T::Error>) -> Result<(), T::Error>
     where
-        T: ObFileRead<Properties = DefaultProperties>,
+        T: NoteRead<Properties = DefaultProperties>,
         T::Error: From<std::io::Error>,
     {
         let error = result.err().unwrap();
@@ -150,7 +150,7 @@ Two test data";
 
     fn with_unicode<T>(file: T) -> Result<(), T::Error>
     where
-        T: ObFileRead<Properties = DefaultProperties>,
+        T: NoteRead<Properties = DefaultProperties>,
         T::Error: From<std::io::Error>,
     {
         let properties = file.properties().unwrap().unwrap();
@@ -163,7 +163,7 @@ Two test data";
 
     fn space_with_properties<T>(file: T, content: &str) -> Result<(), T::Error>
     where
-        T: ObFileRead<Properties = DefaultProperties>,
+        T: NoteRead<Properties = DefaultProperties>,
         T::Error: From<std::io::Error>,
     {
         let properties = file.properties().unwrap();
@@ -176,7 +176,7 @@ Two test data";
 
     pub(crate) fn from_reader<T>() -> Result<(), T::Error>
     where
-        T: ObFileRead<Properties = DefaultProperties>,
+        T: NoteRead<Properties = DefaultProperties>,
         T::Error: From<std::io::Error>,
     {
         let mut reader = Cursor::new(TEST_DATA);
@@ -188,7 +188,7 @@ Two test data";
 
     pub(crate) fn from_reader_note_name<T>() -> Result<(), T::Error>
     where
-        T: ObFileRead<Properties = DefaultProperties>,
+        T: NoteRead<Properties = DefaultProperties>,
         T::Error: From<std::io::Error>,
     {
         let file1 = T::from_reader(&mut Cursor::new(TEST_DATA), None::<&str>)?;
@@ -200,7 +200,7 @@ Two test data";
 
     pub(crate) fn from_reader_without_properties<T>() -> Result<(), T::Error>
     where
-        T: ObFileRead<Properties = DefaultProperties>,
+        T: NoteRead<Properties = DefaultProperties>,
         T::Error: From<std::io::Error>,
     {
         let test_data = "TEST_DATA";
@@ -212,7 +212,7 @@ Two test data";
 
     pub(crate) fn from_reader_invalid_yaml<T>() -> Result<(), T::Error>
     where
-        T: ObFileRead<Properties = DefaultProperties>,
+        T: NoteRead<Properties = DefaultProperties>,
         T::Error: From<std::io::Error>,
     {
         let result = T::from_reader(&mut Cursor::new(BROKEN_DATA), None::<&str>);
@@ -223,7 +223,7 @@ Two test data";
 
     pub(crate) fn from_reader_invalid_format<T>() -> Result<(), T::Error>
     where
-        T: ObFileRead<Properties = DefaultProperties>,
+        T: NoteRead<Properties = DefaultProperties>,
         T::Error: From<std::io::Error>,
     {
         let broken_data = "---\n";
@@ -235,7 +235,7 @@ Two test data";
 
     pub(crate) fn from_reader_with_unicode<T>() -> Result<(), T::Error>
     where
-        T: ObFileRead<Properties = DefaultProperties>,
+        T: NoteRead<Properties = DefaultProperties>,
         T::Error: From<std::io::Error>,
     {
         let file = T::from_reader(&mut Cursor::new(UNICODE_DATA), None::<&str>)?;
@@ -246,7 +246,7 @@ Two test data";
 
     pub(crate) fn from_reader_space_with_properties<T>() -> Result<(), T::Error>
     where
-        T: ObFileRead<Properties = DefaultProperties>,
+        T: NoteRead<Properties = DefaultProperties>,
         T::Error: From<std::io::Error>,
     {
         let file = T::from_reader(&mut Cursor::new(SPACE_DATA), None::<&str>)?;
@@ -257,7 +257,7 @@ Two test data";
 
     pub(crate) fn from_string<T>() -> Result<(), T::Error>
     where
-        T: ObFileRead<Properties = DefaultProperties>,
+        T: NoteRead<Properties = DefaultProperties>,
         T::Error: From<std::io::Error>,
     {
         let file = T::from_string(TEST_DATA, None::<&str>)?;
@@ -268,7 +268,7 @@ Two test data";
 
     pub(crate) fn from_string_note_name<T>() -> Result<(), T::Error>
     where
-        T: ObFileRead<Properties = DefaultProperties>,
+        T: NoteRead<Properties = DefaultProperties>,
         T::Error: From<std::io::Error>,
     {
         let file1 = T::from_string(TEST_DATA, None::<&str>)?;
@@ -280,7 +280,7 @@ Two test data";
 
     pub(crate) fn from_string_without_properties<T>() -> Result<(), T::Error>
     where
-        T: ObFileRead<Properties = DefaultProperties>,
+        T: NoteRead<Properties = DefaultProperties>,
         T::Error: From<std::io::Error>,
     {
         let test_data = "TEST_DATA";
@@ -292,7 +292,7 @@ Two test data";
 
     pub(crate) fn from_string_with_invalid_yaml<T>() -> Result<(), T::Error>
     where
-        T: ObFileRead<Properties = DefaultProperties>,
+        T: NoteRead<Properties = DefaultProperties>,
         T::Error: From<std::io::Error> + From<serde_yml::Error> + 'static,
     {
         let result = T::from_string(BROKEN_DATA, None::<&str>);
@@ -303,7 +303,7 @@ Two test data";
 
     pub(crate) fn from_string_invalid_format<T>() -> Result<(), T::Error>
     where
-        T: ObFileRead<Properties = DefaultProperties>,
+        T: NoteRead<Properties = DefaultProperties>,
         T::Error: From<std::io::Error> + From<parser::Error>,
     {
         let broken_data = "---\n";
@@ -316,7 +316,7 @@ Two test data";
 
     pub(crate) fn from_string_with_unicode<T>() -> Result<(), T::Error>
     where
-        T: ObFileRead<Properties = DefaultProperties>,
+        T: NoteRead<Properties = DefaultProperties>,
         T::Error: From<std::io::Error>,
     {
         let file = T::from_string(UNICODE_DATA, None::<&str>)?;
@@ -327,7 +327,7 @@ Two test data";
 
     pub(crate) fn from_string_space_with_properties<T>() -> Result<(), T::Error>
     where
-        T: ObFileRead<Properties = DefaultProperties>,
+        T: NoteRead<Properties = DefaultProperties>,
         T::Error: From<std::io::Error>,
     {
         let file = T::from_string(SPACE_DATA, None::<&str>)?;
@@ -338,7 +338,7 @@ Two test data";
 
     pub(crate) fn from_file<T>() -> Result<(), T::Error>
     where
-        T: ObFileRead<Properties = DefaultProperties>,
+        T: NoteRead<Properties = DefaultProperties>,
         T::Error: From<std::io::Error>,
     {
         let mut temp_file = NamedTempFile::new().unwrap();
@@ -352,7 +352,7 @@ Two test data";
 
     pub(crate) fn from_file_note_name<T>() -> Result<(), T::Error>
     where
-        T: ObFileRead<Properties = DefaultProperties>,
+        T: NoteRead<Properties = DefaultProperties>,
         T::Error: From<std::io::Error>,
     {
         let mut temp_file = NamedTempFile::new().unwrap();
@@ -373,7 +373,7 @@ Two test data";
 
     pub(crate) fn from_file_without_properties<T>() -> Result<(), T::Error>
     where
-        T: ObFileRead<Properties = DefaultProperties>,
+        T: NoteRead<Properties = DefaultProperties>,
         T::Error: From<std::io::Error>,
     {
         let test_data = "TEST_DATA";
@@ -388,7 +388,7 @@ Two test data";
 
     pub(crate) fn from_file_with_invalid_yaml<T>() -> Result<(), T::Error>
     where
-        T: ObFileRead<Properties = DefaultProperties>,
+        T: NoteRead<Properties = DefaultProperties>,
         T::Error: From<std::io::Error> + From<serde_yml::Error>,
     {
         let mut test_file = NamedTempFile::new().unwrap();
@@ -402,7 +402,7 @@ Two test data";
 
     pub(crate) fn from_file_invalid_format<T>() -> Result<(), T::Error>
     where
-        T: ObFileRead<Properties = DefaultProperties>,
+        T: NoteRead<Properties = DefaultProperties>,
         T::Error: From<std::io::Error> + From<parser::Error>,
     {
         let broken_data = "---\n";
@@ -417,7 +417,7 @@ Two test data";
 
     pub(crate) fn from_file_with_unicode<T>() -> Result<(), T::Error>
     where
-        T: ObFileRead<Properties = DefaultProperties>,
+        T: NoteRead<Properties = DefaultProperties>,
         T::Error: From<std::io::Error>,
     {
         let mut test_file = NamedTempFile::new().unwrap();
@@ -431,7 +431,7 @@ Two test data";
 
     pub(crate) fn from_file_space_with_properties<T>() -> Result<(), T::Error>
     where
-        T: ObFileRead<Properties = DefaultProperties>,
+        T: NoteRead<Properties = DefaultProperties>,
         T::Error: From<std::io::Error>,
     {
         let data = "  ---\ntest: test-data\n---\n";
@@ -445,117 +445,117 @@ Two test data";
     }
 
     macro_rules! impl_all_tests_from_reader {
-        ($impl_obfile:path) => {
+        ($impl_note:path) => {
             #[allow(unused_imports)]
-            use $crate::obfile::obfile_read::tests::*;
+            use $crate::note::note_read::tests::*;
 
-            impl_test_for_obfile!(impl_from_reader, from_reader, $impl_obfile);
+            impl_test_for_note!(impl_from_reader, from_reader, $impl_note);
 
-            impl_test_for_obfile!(
+            impl_test_for_note!(
                 impl_from_reader_note_name,
                 from_reader_note_name,
-                $impl_obfile
+                $impl_note
             );
-            impl_test_for_obfile!(
+            impl_test_for_note!(
                 impl_from_reader_without_properties,
                 from_reader_without_properties,
-                $impl_obfile
+                $impl_note
             );
-            impl_test_for_obfile!(
+            impl_test_for_note!(
                 impl_from_reader_with_invalid_yaml,
                 from_reader_invalid_yaml,
-                $impl_obfile
+                $impl_note
             );
-            impl_test_for_obfile!(
+            impl_test_for_note!(
                 impl_from_reader_invalid_format,
                 from_reader_invalid_format,
-                $impl_obfile
+                $impl_note
             );
-            impl_test_for_obfile!(
+            impl_test_for_note!(
                 impl_from_reader_with_unicode,
                 from_reader_with_unicode,
-                $impl_obfile
+                $impl_note
             );
-            impl_test_for_obfile!(
+            impl_test_for_note!(
                 impl_from_reader_space_with_properties,
                 from_reader_space_with_properties,
-                $impl_obfile
+                $impl_note
             );
         };
     }
 
     macro_rules! impl_all_tests_from_string {
-        ($impl_obfile:path) => {
+        ($impl_note:path) => {
             #[allow(unused_imports)]
-            use $crate::obfile::obfile_read::tests::*;
+            use $crate::note::note_read::tests::*;
 
-            impl_test_for_obfile!(impl_from_string, from_string, $impl_obfile);
+            impl_test_for_note!(impl_from_string, from_string, $impl_note);
 
-            impl_test_for_obfile!(
+            impl_test_for_note!(
                 impl_from_string_note_name,
                 from_string_note_name,
-                $impl_obfile
+                $impl_note
             );
-            impl_test_for_obfile!(
+            impl_test_for_note!(
                 impl_from_string_without_properties,
                 from_string_without_properties,
-                $impl_obfile
+                $impl_note
             );
-            impl_test_for_obfile!(
+            impl_test_for_note!(
                 impl_from_string_with_invalid_yaml,
                 from_string_with_invalid_yaml,
-                $impl_obfile
+                $impl_note
             );
-            impl_test_for_obfile!(
+            impl_test_for_note!(
                 impl_from_string_invalid_format,
                 from_string_invalid_format,
-                $impl_obfile
+                $impl_note
             );
-            impl_test_for_obfile!(
+            impl_test_for_note!(
                 impl_from_string_with_unicode,
                 from_string_with_unicode,
-                $impl_obfile
+                $impl_note
             );
-            impl_test_for_obfile!(
+            impl_test_for_note!(
                 impl_from_string_space_with_properties,
                 from_string_space_with_properties,
-                $impl_obfile
+                $impl_note
             );
         };
     }
 
     macro_rules! impl_all_tests_from_file {
-        ($impl_obfile:path) => {
+        ($impl_note:path) => {
             #[allow(unused_imports)]
-            use $crate::obfile::impl_tests::*;
+            use $crate::note::impl_tests::*;
 
-            impl_test_for_obfile!(impl_from_file, from_file, $impl_obfile);
-            impl_test_for_obfile!(impl_from_file_note_name, from_file_note_name, $impl_obfile);
+            impl_test_for_note!(impl_from_file, from_file, $impl_note);
+            impl_test_for_note!(impl_from_file_note_name, from_file_note_name, $impl_note);
 
-            impl_test_for_obfile!(
+            impl_test_for_note!(
                 impl_from_file_without_properties,
                 from_file_without_properties,
-                $impl_obfile
+                $impl_note
             );
-            impl_test_for_obfile!(
+            impl_test_for_note!(
                 impl_from_file_with_invalid_yaml,
                 from_file_with_invalid_yaml,
-                $impl_obfile
+                $impl_note
             );
-            impl_test_for_obfile!(
+            impl_test_for_note!(
                 impl_from_file_invalid_format,
                 from_file_invalid_format,
-                $impl_obfile
+                $impl_note
             );
-            impl_test_for_obfile!(
+            impl_test_for_note!(
                 impl_from_file_with_unicode,
                 from_file_with_unicode,
-                $impl_obfile
+                $impl_note
             );
-            impl_test_for_obfile!(
+            impl_test_for_note!(
                 impl_from_file_space_with_properties,
                 from_file_space_with_properties,
-                $impl_obfile
+                $impl_note
             );
         };
     }

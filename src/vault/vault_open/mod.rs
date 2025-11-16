@@ -1,33 +1,64 @@
 //! Module for open impl [`Vault`]
 
+pub mod options;
+
 use super::Vault;
 use crate::{
-    obfile::{ObFile, ObFileRead},
-    prelude::ObFileOnDisk,
+    note::{Note, NoteRead},
+    prelude::NoteOnDisk,
 };
+pub use options::VaultOptions;
 use serde::de::DeserializeOwned;
-use std::path::{Path, PathBuf};
+use std::{
+    fmt::Debug,
+    path::{Path, PathBuf},
+};
 use thiserror::Error;
 use walkdir::{DirEntry, WalkDir};
 
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub struct VaultOptions {
-    path: PathBuf,
-}
+type FilterEntry = dyn FnMut(&DirEntry) -> bool;
 
-impl VaultOptions {
-    pub fn new(path: impl AsRef<Path>) -> Self {
-        Self {
-            path: path.as_ref().to_path_buf(),
-        }
-    }
-}
-
-#[derive(Debug, PartialEq, Eq)]
 pub struct VaultBuilder<'a> {
     options: &'a VaultOptions,
     include_hidden: bool,
+    follow_links: bool,
+    follow_root_links: bool,
+    max_depth: Option<usize>,
+    min_depth: Option<usize>,
+    filter_entry: Option<Box<FilterEntry>>,
 }
+
+impl Debug for VaultBuilder<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("VaultBuilder")
+            .field("options", self.options)
+            .finish()
+    }
+}
+
+impl PartialEq for VaultBuilder<'_> {
+    fn eq(&self, other: &Self) -> bool {
+        (
+            self.options,
+            self.include_hidden,
+            self.follow_links,
+            self.follow_root_links,
+            self.max_depth,
+            self.min_depth,
+            self.filter_entry.is_some(),
+        ) == (
+            other.options,
+            other.include_hidden,
+            other.follow_links,
+            other.follow_root_links,
+            other.max_depth,
+            other.min_depth,
+            other.filter_entry.is_some(),
+        )
+    }
+}
+
+impl Eq for VaultBuilder<'_> {}
 
 fn is_hidden(path: impl AsRef<Path>) -> bool {
     path.as_ref()
@@ -41,18 +72,52 @@ fn is_md_file(path: impl AsRef<Path>) -> bool {
         .is_some_and(|p| p.eq_ignore_ascii_case("md"))
 }
 
+macro_rules! impl_setter {
+    ($name:ident, $t:ty) => {
+        #[must_use]
+        pub const fn $name(mut self, $name: $t) -> Self {
+            self.$name = $name;
+            self
+        }
+    };
+}
+
 impl<'a> VaultBuilder<'a> {
     #[must_use]
     pub const fn new(options: &'a VaultOptions) -> Self {
         Self {
             options,
             include_hidden: false,
+            follow_links: false,
+            follow_root_links: true,
+            max_depth: None,
+            min_depth: None,
+            filter_entry: None,
         }
     }
 
+    impl_setter!(include_hidden, bool);
+    impl_setter!(follow_links, bool);
+    impl_setter!(follow_root_links, bool);
+
     #[must_use]
-    pub const fn include_hidden(mut self, include_hidden: bool) -> Self {
-        self.include_hidden = include_hidden;
+    pub const fn max_depth(mut self, max_depth: usize) -> Self {
+        self.max_depth = Some(max_depth);
+        self
+    }
+
+    #[must_use]
+    pub const fn min_depth(mut self, min_depth: usize) -> Self {
+        self.min_depth = Some(min_depth);
+        self
+    }
+
+    #[must_use]
+    pub fn filter_entry<F>(mut self, f: F) -> Self
+    where
+        F: FnMut(&DirEntry) -> bool + 'static,
+    {
+        self.filter_entry = Some(Box::new(f));
         self
     }
 
@@ -64,50 +129,49 @@ impl<'a> VaultBuilder<'a> {
         true
     }
 
-    #[allow(clippy::should_implement_trait)]
-    pub fn into_iter<F>(self) -> impl Iterator<Item = Result<F, F::Error>>
-    where
-        F: ObFileRead,
-        F::Properties: DeserializeOwned,
-        F::Error: From<std::io::Error>,
-    {
+    fn get_files_from_walkdir(self) -> impl Iterator<Item = PathBuf> {
         let include_hidden = self.include_hidden;
+        let mut custom_filter_entry = self.filter_entry.unwrap_or_else(|| Box::new(|_| true));
 
-        let files = WalkDir::new(&self.options.path)
+        WalkDir::new(self.options.path())
+            .follow_links(self.follow_links)
+            .follow_root_links(self.follow_root_links)
+            .max_depth(self.max_depth.unwrap_or(usize::MAX))
+            .min_depth(self.min_depth.unwrap_or(1))
             .into_iter()
             .filter_entry(move |entry| {
-                entry.depth() == 0 || Self::ignored_hidden_files(include_hidden, entry)
-            })
-            .filter_map(Result::ok)
-            .filter(|entry| entry.file_type().is_file())
-            .map(DirEntry::into_path)
-            .filter(|path| is_md_file(path));
-
-        files.map(|path| F::from_file(path))
-    }
-
-    #[cfg(feature = "rayon")]
-    pub fn into_par_iter<F>(self) -> impl rayon::iter::ParallelIterator<Item = Result<F, F::Error>>
-    where
-        F: ObFileRead + Send,
-        F::Properties: DeserializeOwned,
-        F::Error: From<std::io::Error> + Send,
-    {
-        use rayon::prelude::*;
-        let include_hidden = self.include_hidden;
-
-        let paths: Vec<_> = WalkDir::new(&self.options.path)
-            .into_iter()
-            .filter_entry(move |entry| {
-                entry.depth() == 0 || Self::ignored_hidden_files(include_hidden, entry)
+                Self::ignored_hidden_files(include_hidden, entry) && custom_filter_entry(entry)
             })
             .filter_map(Result::ok)
             .filter(|entry| entry.file_type().is_file())
             .map(DirEntry::into_path)
             .filter(|path| is_md_file(path))
-            .collect();
+    }
 
-        paths.into_par_iter().map(|path| F::from_file(path))
+    #[allow(clippy::should_implement_trait)]
+    pub fn into_iter<F>(self) -> impl Iterator<Item = Result<F, F::Error>>
+    where
+        F: NoteRead,
+        F::Properties: DeserializeOwned,
+        F::Error: From<std::io::Error>,
+    {
+        let files = self.get_files_from_walkdir();
+
+        files.map(|path| F::from_file(path))
+    }
+
+    #[cfg(feature = "rayon")]
+    #[must_use]
+    pub fn into_par_iter<F>(self) -> impl rayon::iter::ParallelIterator<Item = Result<F, F::Error>>
+    where
+        F: NoteRead + Send,
+        F::Properties: DeserializeOwned,
+        F::Error: From<std::io::Error> + Send,
+    {
+        use rayon::prelude::*;
+
+        let files: Vec<_> = self.get_files_from_walkdir().collect();
+        files.into_par_iter().map(|path| F::from_file(path))
     }
 }
 
@@ -119,11 +183,11 @@ pub enum Error {
 
 impl<F> Vault<F>
 where
-    F: ObFile,
+    F: Note,
 {
     fn impl_build_vault(notes: Vec<F>, options: VaultOptions) -> Result<Self, Error> {
-        if !options.path.is_dir() {
-            return Err(Error::NotFoundDir(options.path));
+        if !options.path().is_dir() {
+            return Err(Error::NotFoundDir(options.into_path()));
         }
 
         #[cfg(feature = "logging")]
@@ -135,7 +199,7 @@ where
 
         Ok(Self {
             notes,
-            path: options.path,
+            path: options.into_path(),
         })
     }
 
@@ -162,10 +226,10 @@ where
     }
 }
 
-pub trait IteratorVaultBuilder<F = ObFileOnDisk>: Iterator<Item = F>
+pub trait IteratorVaultBuilder<F = NoteOnDisk>: Iterator<Item = F>
 where
     Self: Sized,
-    F: ObFile,
+    F: Note,
 {
     fn build_vault(self, options: &VaultOptions) -> Result<Vault<F>, Error> {
         Vault::build_vault(self, options)
@@ -174,16 +238,16 @@ where
 
 impl<F, I> IteratorVaultBuilder<F> for I
 where
-    F: ObFile,
+    F: Note,
     I: Iterator<Item = F>,
 {
 }
 
 #[cfg(feature = "rayon")]
-pub trait ParallelIteratorVaultBuilder<F = ObFileOnDisk>:
+pub trait ParallelIteratorVaultBuilder<F = NoteOnDisk>:
     rayon::iter::ParallelIterator<Item = F>
 where
-    F: ObFile + Send,
+    F: Note + Send,
 {
     fn build_vault(self, options: &VaultOptions) -> Result<Vault<F>, Error> {
         Vault::par_build_vault(self, options)
@@ -193,7 +257,7 @@ where
 #[cfg(feature = "rayon")]
 impl<F, I> ParallelIteratorVaultBuilder<F> for I
 where
-    F: ObFile + Send,
+    F: Note + Send,
     I: rayon::iter::ParallelIterator<Item = F>,
 {
 }
@@ -201,8 +265,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::obfile::obfile_in_memory;
-    use crate::prelude::ObFileInMemory;
+    use crate::note::note_in_memory;
+    use crate::prelude::NoteInMemory;
     use crate::vault::VaultInMemory;
     use crate::vault::vault_test::create_files_for_vault;
     use std::fs::File;
@@ -210,14 +274,13 @@ mod tests {
 
     fn impl_open<F>(path: impl AsRef<Path>) -> Result<Vault<F>, Error>
     where
-        F: ObFileRead,
+        F: NoteRead,
         F::Error: From<std::io::Error>,
         F::Properties: DeserializeOwned,
     {
         let options = VaultOptions::new(path);
 
         VaultBuilder::new(&options)
-            .include_hidden(true)
             .into_iter()
             .map(|file| file.unwrap())
             .build_vault(&options)
@@ -226,7 +289,7 @@ mod tests {
     #[cfg(feature = "rayon")]
     fn impl_par_open<F>(path: impl AsRef<Path>) -> Result<Vault<F>, Error>
     where
-        F: ObFileRead + Send,
+        F: NoteRead + Send,
         F::Error: From<std::io::Error> + Send,
         F::Properties: DeserializeOwned,
     {
@@ -235,7 +298,6 @@ mod tests {
         let options = VaultOptions::new(path);
 
         VaultBuilder::new(&options)
-            .include_hidden(true)
             .into_par_iter()
             .map(|file| file.unwrap())
             .build_vault(&options)
@@ -271,7 +333,6 @@ mod tests {
 
         let options = VaultOptions::new(&path);
         let files = VaultBuilder::new(&options)
-            .include_hidden(true)
             .into_iter()
             .map(|file| file.unwrap());
 
@@ -291,7 +352,6 @@ mod tests {
 
         let options = VaultOptions::new(&path);
         let files = VaultBuilder::new(&options)
-            .include_hidden(true)
             .into_par_iter()
             .filter_map(Result::ok);
 
@@ -335,15 +395,14 @@ mod tests {
 
         let options = VaultOptions::new(&path);
         let errors = VaultBuilder::new(&options)
-            .include_hidden(true)
-            .into_iter::<ObFileInMemory>()
+            .into_iter::<NoteInMemory>()
             .filter_map(Result::err)
             .collect::<Vec<_>>();
 
         assert_eq!(errors.len(), 1);
         assert!(matches!(
             errors.last(),
-            Some(obfile_in_memory::Error::InvalidFormat(_))
+            Some(note_in_memory::Error::InvalidFormat(_))
         ));
     }
 
@@ -359,15 +418,14 @@ mod tests {
 
         let options = VaultOptions::new(&path);
         let errors = VaultBuilder::new(&options)
-            .include_hidden(true)
-            .into_par_iter::<ObFileInMemory>()
+            .into_par_iter::<NoteInMemory>()
             .filter_map(Result::err)
             .collect::<Vec<_>>();
 
         assert_eq!(errors.len(), 1);
         assert!(matches!(
             errors.last(),
-            Some(obfile_in_memory::Error::InvalidFormat(_))
+            Some(note_in_memory::Error::InvalidFormat(_))
         ));
     }
 
@@ -382,8 +440,7 @@ mod tests {
 
         let mut errors = Vec::new();
         let vault = VaultBuilder::new(&options)
-            .include_hidden(true)
-            .into_iter::<ObFileInMemory>()
+            .into_iter::<NoteInMemory>()
             .filter_map(|file| match file {
                 Ok(file) => Some(file),
                 Err(error) => {
@@ -401,7 +458,7 @@ mod tests {
         assert_eq!(errors.len(), 1);
         assert!(matches!(
             errors.last(),
-            Some(obfile_in_memory::Error::InvalidFormat(_))
+            Some(note_in_memory::Error::InvalidFormat(_))
         ));
     }
 
@@ -420,8 +477,7 @@ mod tests {
 
         let errors = Arc::new(Mutex::new(Vec::new()));
         let vault = VaultBuilder::new(&options)
-            .include_hidden(true)
-            .into_par_iter::<ObFileInMemory>()
+            .into_par_iter::<NoteInMemory>()
             .filter_map(|file| match file {
                 Ok(file) => Some(file),
                 Err(error) => {
@@ -439,7 +495,83 @@ mod tests {
         assert_eq!(errors.lock().unwrap().len(), 1);
         assert!(matches!(
             errors.lock().unwrap().last(),
-            Some(obfile_in_memory::Error::InvalidFormat(_))
+            Some(note_in_memory::Error::InvalidFormat(_))
         ));
+    }
+
+    #[cfg_attr(feature = "logging", test_log::test)]
+    #[cfg_attr(not(feature = "logging"), test)]
+    fn include_hidden() {
+        let (path, files) = create_files_for_vault().unwrap();
+
+        let mut file = File::create_new(path.path().join(".hidden.md")).unwrap();
+        file.write_all(b"hidden information").unwrap();
+
+        let options = VaultOptions::new(&path);
+
+        let vault_with_hidden: VaultInMemory = VaultBuilder::new(&options)
+            .include_hidden(true)
+            .into_iter()
+            .map(|file| file.unwrap())
+            .build_vault(&options)
+            .unwrap();
+
+        let vault_without_hidden: VaultInMemory = VaultBuilder::new(&options)
+            .include_hidden(false)
+            .into_iter()
+            .map(|file| file.unwrap())
+            .build_vault(&options)
+            .unwrap();
+
+        assert_eq!(vault_with_hidden.count_notes(), files.len() + 1);
+        assert_eq!(vault_without_hidden.count_notes(), files.len());
+    }
+
+    #[cfg_attr(feature = "logging", test_log::test)]
+    #[cfg_attr(not(feature = "logging"), test)]
+    fn max_depth() {
+        let (path, _) = create_files_for_vault().unwrap();
+
+        let options = VaultOptions::new(&path);
+        let vault: VaultInMemory = VaultBuilder::new(&options)
+            .max_depth(1) // Without `data/main.md`
+            .into_iter()
+            .map(|file| file.unwrap())
+            .build_vault(&options)
+            .unwrap();
+
+        assert_eq!(vault.count_notes(), 2);
+    }
+
+    #[cfg_attr(feature = "logging", test_log::test)]
+    #[cfg_attr(not(feature = "logging"), test)]
+    fn min_depth() {
+        let (path, _) = create_files_for_vault().unwrap();
+
+        let options = VaultOptions::new(&path);
+        let vault: VaultInMemory = VaultBuilder::new(&options)
+            .min_depth(2) // Only `data/main.md`
+            .into_iter()
+            .map(|file| file.unwrap())
+            .build_vault(&options)
+            .unwrap();
+
+        assert_eq!(vault.count_notes(), 1);
+    }
+
+    #[cfg_attr(feature = "logging", test_log::test)]
+    #[cfg_attr(not(feature = "logging"), test)]
+    fn filter_entry() {
+        let (path, _) = create_files_for_vault().unwrap();
+
+        let options = VaultOptions::new(&path);
+        let vault: VaultInMemory = VaultBuilder::new(&options)
+            .filter_entry(|entry| !entry.file_name().eq_ignore_ascii_case("main.md"))
+            .into_iter()
+            .map(|file| file.unwrap())
+            .build_vault(&options)
+            .unwrap();
+
+        assert_eq!(vault.count_notes(), 1);
     }
 }

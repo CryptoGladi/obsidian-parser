@@ -3,7 +3,7 @@ use petgraph::graph::NodeIndex;
 use std::collections::HashMap;
 
 #[derive(Default, Clone, PartialEq, Eq)]
-pub(crate) struct Index {
+pub struct Index {
     full: HashMap<String, NodeIndex>,
     short: AHashMap<String, NodeIndex>,
 }

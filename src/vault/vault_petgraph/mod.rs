@@ -7,15 +7,15 @@
 //! # Key Features
 //! - Efficient graph construction using parallel processing (with `rayon` feature)
 //! - Smart link parsing that handles Obsidian's link formats
-//! - Memory-friendly design (prefer [`ObFileOnDisk`](crate::prelude::ObFileOnDisk) for large vaults)
+//! - Memory-friendly design (prefer [`NoteOnDisk`](crate::prelude::NoteOnDisk) for large vaults)
 //!
-//! # Why [`ObFileOnDisk`](crate::prelude::ObFileOnDisk) > [`ObFileInMemory`](crate::prelude::ObFileInMemory)?
-//! [`ObFileOnDisk`](crate::prelude::ObFileOnDisk) is recommended for large vaults because:
+//! # Why [`NoteOnDisk`](crate::prelude::NoteOnDisk) > [`NoteInMemory`](crate::prelude::NoteInMemory)?
+//! [`NoteOnDisk`](crate::prelude::NoteOnDisk) is recommended for large vaults because:
 //! 1. **Lower memory usage**: Only reads file content on demand
 //! 2. **Better scalability**: Avoids loading entire vault into RAM
 //! 3. **Faster initialization**: Defers parsing until needed
 //!
-//! Use [`ObFileInMemory`](crate::prelude::ObFileInMemory) only for small vaults or when you
+//! Use [`NoteInMemory`](crate::prelude::NoteInMemory) only for small vaults or when you
 //! need repeated access to content.
 //!
 //! # Requirements
@@ -29,7 +29,7 @@ mod graph_builder;
 mod index;
 
 use super::Vault;
-use crate::obfile::ObFile;
+use crate::note::Note;
 use graph_builder::GraphBuilder;
 use petgraph::{
     EdgeType, Graph,
@@ -39,10 +39,10 @@ use std::marker::{Send, Sync};
 
 impl<F> Vault<F>
 where
-    F: ObFile,
+    F: Note,
 {
     #[cfg_attr(docsrs, doc(cfg(feature = "petgraph")))]
-    pub fn get_graph<'a, Ty>(&'a self) -> Result<Graph<&'a F, (), Ty>, F::Error>
+    pub fn get_graph<Ty>(&self) -> Result<Graph<&F, (), Ty>, F::Error>
     where
         Ty: EdgeType,
     {
@@ -55,7 +55,7 @@ where
 
     #[cfg_attr(docsrs, doc(cfg(feature = "petgraph")))]
     #[cfg(feature = "rayon")]
-    pub fn par_get_graph<'a, Ty>(&'a self) -> Result<Graph<&'a F, (), Ty>, F::Error>
+    pub fn par_get_graph<Ty>(&self) -> Result<Graph<&F, (), Ty>, F::Error>
     where
         F: Send + Sync,
         F::Error: Send,
@@ -74,12 +74,12 @@ where
     ///
     /// # Performance Notes
     /// - For vaults with 1000+ notes, enable `rayon` feature
-    /// - Uses [`ObFileOnDisk`](crate::prelude::ObFileOnDisk) for minimal memory footprint
+    /// - Uses [`NoteOnDisk`](crate::prelude::NoteOnDisk) for minimal memory footprint
     ///
     /// # Other
     /// See [`get_ungraph`](Vault::get_ungraph)
     #[cfg_attr(docsrs, doc(cfg(feature = "petgraph")))]
-    pub fn get_digraph<'a>(&'a self) -> Result<DiGraph<&'a F, ()>, F::Error> {
+    pub fn get_digraph(&self) -> Result<DiGraph<&F, ()>, F::Error> {
         #[cfg(feature = "logging")]
         log::debug!("Building directed graph");
 
@@ -88,8 +88,7 @@ where
 
     #[cfg_attr(docsrs, doc(cfg(feature = "petgraph")))]
     #[cfg(feature = "rayon")]
-    #[must_use]
-    pub fn par_get_digraph<'a>(&'a self) -> Result<DiGraph<&'a F, ()>, F::Error>
+    pub fn par_get_digraph(&self) -> Result<DiGraph<&F, ()>, F::Error>
     where
         F: Send + Sync,
         F::Error: Send,
@@ -104,8 +103,7 @@ where
     ///
     /// Useful for connectivity analysis where direction doesn't matter
     #[cfg_attr(docsrs, doc(cfg(feature = "petgraph")))]
-    #[must_use]
-    pub fn get_ungraph<'a>(&'a self) -> Result<UnGraph<&'a F, ()>, F::Error> {
+    pub fn get_ungraph(&self) -> Result<UnGraph<&F, ()>, F::Error> {
         #[cfg(feature = "logging")]
         log::debug!("Building undirected graph");
 
@@ -114,12 +112,10 @@ where
 
     #[cfg_attr(docsrs, doc(cfg(feature = "petgraph")))]
     #[cfg(feature = "rayon")]
-    #[must_use]
-    pub fn par_get_ungraph<'a>(&'a self) -> Result<UnGraph<&'a F, ()>, F::Error>
+    pub fn par_get_ungraph(&self) -> Result<UnGraph<&F, ()>, F::Error>
     where
         F: Send + Sync,
         F::Error: Send,
-        F: Send + Sync,
     {
         #[cfg(feature = "logging")]
         log::debug!("Building undirected graph");

@@ -1,7 +1,7 @@
 //! On-disk representation of an Obsidian note file
 
-use crate::obfile::parser::{self, ResultParse, parse_obfile};
-use crate::obfile::{DefaultProperties, ObFile, ObFileRead};
+use crate::note::parser::{self, ResultParse, parse_note};
+use crate::note::{DefaultProperties, Note, NoteRead};
 use serde::de::DeserializeOwned;
 use std::borrow::Cow;
 use std::io::Read;
@@ -17,8 +17,8 @@ use thiserror::Error;
 /// 2. Storage is fast (SSD/NVMe)
 /// 3. Content is accessed infrequently
 ///
-/// # Tradeoffs vs `ObFileInMemory`
-/// | Characteristic       | [`ObFileOnDisk`]        | [`ObFileInMemory`]          |
+/// # Tradeoffs vs `NoteInMemory`
+/// | Characteristic       | [`NoteOnDisk`]        | [`NoteInMemory`]          |
 /// |----------------------|-------------------------|-----------------------------|
 /// | Memory usage         | **Minimal** (~24 bytes) | High (content + properties) |
 /// | File access          | On-demand               | Preloaded                   |
@@ -26,7 +26,7 @@ use thiserror::Error;
 /// | Content access cost  | Disk read               | Zero cost                   |
 ///
 /// # Recommendation
-/// Prefer `ObFileOnDisk` for vault operations on modern hardware. The combination of
+/// Prefer `NoteOnDisk` for vault operations on modern hardware. The combination of
 /// SSD speeds and Rust's efficient I/O makes this implementation ideal for:
 /// - Large vaults (1000+ files)
 /// - Graph processing
@@ -34,9 +34,9 @@ use thiserror::Error;
 /// # Warning
 /// Requires **persistent file access** throughout the object's lifetime
 ///
-/// [`ObFileInMemory`]: crate::obfile::obfile_in_memory::ObFileInMemory
+/// [`NoteInMemory`]: crate::note::note_in_memory::NoteInMemory
 #[derive(Debug, Default, PartialEq, Eq, Clone)]
-pub struct ObFileOnDisk<T = DefaultProperties>
+pub struct NoteOnDisk<T = DefaultProperties>
 where
     T: Clone + DeserializeOwned,
 {
@@ -87,13 +87,13 @@ pub enum Error {
     /// use obsidian_parser::prelude::*;
     ///
     /// // Will fail if passed a directory path
-    /// ObFileOnDisk::from_file_default("/home/test");
+    /// NoteOnDisk::from_file_default("/home/test");
     /// ```
     #[error("Path: `{0}` is not a directory")]
     IsNotFile(PathBuf),
 }
 
-impl<T> ObFile for ObFileOnDisk<T>
+impl<T> Note for NoteOnDisk<T>
 where
     T: DeserializeOwned + Clone,
 {
@@ -115,7 +115,7 @@ where
         // SAFETY: Notes files in Obsidian (`*.md`) ensure that the file is encoded in UTF-8
         let raw_text = unsafe { String::from_utf8_unchecked(data) };
 
-        let result = match parse_obfile(&raw_text)? {
+        let result = match parse_note(&raw_text)? {
             ResultParse::WithProperties {
                 content: _,
                 properties,
@@ -147,7 +147,7 @@ where
     /// - Single-pass processing (link extraction, analysis)
     /// - Large files where in-memory storage is prohibitive
     ///
-    /// For repeated access, consider caching or [`ObFileInMemory`](crate::obfile::obfile_in_memory::ObFileInMemory).
+    /// For repeated access, consider caching or [`NoteInMemory`](crate::note::note_in_memory::NoteInMemory).
     fn content(&self) -> Result<Cow<'_, str>, Error> {
         #[cfg(feature = "logging")]
         log::trace!("Get content from file: `{}`", self.path.display());
@@ -157,7 +157,7 @@ where
         // SAFETY: Notes files in Obsidian (`*.md`) ensure that the file is encoded in UTF-8
         let raw_text = unsafe { String::from_utf8_unchecked(data) };
 
-        let result = match parse_obfile(&raw_text)? {
+        let result = match parse_note(&raw_text)? {
             ResultParse::WithProperties {
                 content,
                 properties: _,
@@ -184,7 +184,7 @@ where
     }
 }
 
-impl<T> ObFileRead for ObFileOnDisk<T>
+impl<T> NoteRead for NoteOnDisk<T>
 where
     T: DeserializeOwned + Clone,
 {
@@ -225,28 +225,28 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::obfile::ObFileDefault;
-    use crate::obfile::impl_tests::impl_test_for_obfile;
-    use crate::obfile::obfile_read::tests::{from_file, from_file_with_unicode};
-    use crate::obfile::obfile_write::tests::impl_all_tests_flush;
+    use crate::note::NoteDefault;
+    use crate::note::impl_tests::impl_test_for_note;
+    use crate::note::note_read::tests::{from_file, from_file_with_unicode};
+    use crate::note::note_write::tests::impl_all_tests_flush;
     use std::fs::File;
     use std::io::Write;
     use tempfile::NamedTempFile;
 
-    impl_all_tests_flush!(ObFileOnDisk);
-    impl_test_for_obfile!(impl_from_file, from_file, ObFileOnDisk);
+    impl_all_tests_flush!(NoteOnDisk);
+    impl_test_for_note!(impl_from_file, from_file, NoteOnDisk);
 
-    impl_test_for_obfile!(
+    impl_test_for_note!(
         impl_from_file_with_unicode,
         from_file_with_unicode,
-        ObFileOnDisk
+        NoteOnDisk
     );
 
     #[cfg_attr(feature = "logging", test_log::test)]
     #[cfg_attr(not(feature = "logging"), test)]
     #[should_panic]
     fn use_from_string_without_path() {
-        ObFileOnDisk::from_string_default("", None::<&str>).unwrap();
+        NoteOnDisk::from_string_default("", None::<&str>).unwrap();
     }
 
     #[cfg_attr(feature = "logging", test_log::test)]
@@ -255,14 +255,14 @@ mod tests {
     fn use_from_file_with_path_not_file() {
         let temp_dir = tempfile::tempdir().unwrap();
 
-        ObFileOnDisk::from_file_default(temp_dir.path()).unwrap();
+        NoteOnDisk::from_file_default(temp_dir.path()).unwrap();
     }
 
     #[cfg_attr(feature = "logging", test_log::test)]
     #[cfg_attr(not(feature = "logging"), test)]
     fn get_path() {
         let test_file = NamedTempFile::new().unwrap();
-        let file = ObFileOnDisk::from_file_default(test_file.path()).unwrap();
+        let file = NoteOnDisk::from_file_default(test_file.path()).unwrap();
 
         assert_eq!(file.path().unwrap(), test_file.path());
         assert_eq!(file.path, test_file.path());
@@ -275,7 +275,7 @@ mod tests {
         let mut test_file = NamedTempFile::new().unwrap();
         test_file.write_all(test_data.as_bytes()).unwrap();
 
-        let file = ObFileOnDisk::from_file_default(test_file.path()).unwrap();
+        let file = NoteOnDisk::from_file_default(test_file.path()).unwrap();
         assert_eq!(file.content().unwrap(), test_data);
     }
 
@@ -286,7 +286,7 @@ mod tests {
         let mut test_file = NamedTempFile::new().unwrap();
         test_file.write_all(test_data.as_bytes()).unwrap();
 
-        let file = ObFileOnDisk::from_file_default(test_file.path()).unwrap();
+        let file = NoteOnDisk::from_file_default(test_file.path()).unwrap();
         let properties = file.properties().unwrap().unwrap();
 
         assert_eq!(file.content().unwrap(), "DATA");
@@ -300,7 +300,7 @@ mod tests {
         let mut test_file = NamedTempFile::new().unwrap();
         test_file.write_all(test_data.as_bytes()).unwrap();
 
-        let file = ObFileOnDisk::from_read_default(
+        let file = NoteOnDisk::from_read_default(
             &mut File::open(test_file.path()).unwrap(),
             Some(test_file.path()),
         )
@@ -320,10 +320,8 @@ mod tests {
         let mut test_file = NamedTempFile::new().unwrap();
         test_file.write_all(test_data.as_bytes()).unwrap();
 
-        let _file = ObFileOnDisk::from_read_default(
-            &mut File::open(test_file.path()).unwrap(),
-            None::<&str>,
-        )
-        .unwrap();
+        let _file =
+            NoteOnDisk::from_read_default(&mut File::open(test_file.path()).unwrap(), None::<&str>)
+                .unwrap();
     }
 }

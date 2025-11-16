@@ -1,9 +1,9 @@
 use super::Vault;
-use crate::obfile::ObFile;
+use crate::note::Note;
 
 fn get_duplicates<'a, F>(sorted_notes: &[&'a F]) -> Vec<&'a F>
 where
-    F: ObFile,
+    F: Note,
 {
     let mut duplicated = Vec::new();
     let mut add_two = true;
@@ -16,10 +16,9 @@ where
                 if add_two {
                     add_two = false;
                     duplicated.push(note1);
-                    duplicated.push(note2);
-                } else {
-                    duplicated.push(note2);
                 }
+
+                duplicated.push(note2);
             } else {
                 add_two = true;
             }
@@ -31,7 +30,7 @@ where
 
 impl<F> Vault<F>
 where
-    F: ObFile,
+    F: Note,
 {
     /// Returns duplicated note name
     ///
@@ -40,7 +39,8 @@ where
     ///
     /// # Other
     /// See [`check_unique_note_name`](Vault::check_unique_note_name)
-    pub fn get_duplicates_notes_by_name<'a>(&'a self) -> Vec<&'a F> {
+    #[must_use]
+    pub fn get_duplicates_notes_by_name(&self) -> Vec<&F> {
         #[cfg(feature = "logging")]
         log::debug!(
             "Get duplicates notes by name in {} ({} notes)",
@@ -49,7 +49,7 @@ where
         );
 
         let sorted_notes = {
-            let mut notes: Vec<_> = self.notes().iter().map(|x| x).collect();
+            let mut notes: Vec<_> = self.notes().iter().collect();
             notes.sort_unstable_by_key(|note| note.note_name());
 
             notes
@@ -71,6 +71,7 @@ where
     /// # Other
     /// See [`check_unique_note_name`](Vault::check_unique_note_name)
     #[cfg(feature = "rayon")]
+    #[must_use]
     pub fn par_get_duplicates_notes_by_name<'a>(&'a self) -> Vec<&'a F>
     where
         &'a F: Send,
@@ -85,7 +86,7 @@ where
         );
 
         let sorted_notes = {
-            let mut notes: Vec<_> = self.notes().iter().map(|x| x).collect();
+            let mut notes: Vec<_> = self.notes().iter().collect();
             notes.par_sort_unstable_by_key(|note| note.note_name());
 
             notes
@@ -125,7 +126,7 @@ where
 
     #[cfg(feature = "digest")]
     #[cfg_attr(docsrs, doc(cfg(feature = "digest")))]
-    pub fn get_duplicates_notes_by_content<'a, D>(&'a self) -> Result<Vec<&'a F>, F::Error>
+    pub fn get_duplicates_notes_by_content<D>(&self) -> Result<Vec<&F>, F::Error>
     where
         D: digest::Digest,
     {
@@ -145,7 +146,7 @@ where
         }
 
         let sorted_notes = {
-            let mut notes: Vec<_> = self.notes().iter().map(|x| x).zip(hashed).collect();
+            let mut notes: Vec<_> = self.notes().iter().zip(hashed).collect();
             notes.sort_unstable_by_key(|(_, hash)| hash.clone());
 
             notes
@@ -161,10 +162,9 @@ where
                 if add_two {
                     add_two = false;
                     duplicated_notes.push(*note1);
-                    duplicated_notes.push(*note2);
-                } else {
-                    duplicated_notes.push(*note2);
                 }
+
+                duplicated_notes.push(*note2);
             } else {
                 add_two = true;
             }
@@ -186,8 +186,8 @@ where
 #[cfg(test)]
 mod tests {
     use crate::{
-        obfile::{ObFile, ObFileRead},
-        prelude::{IteratorVaultBuilder, ObFileInMemory, VaultBuilder, VaultOptions},
+        note::{Note, NoteRead},
+        prelude::{IteratorVaultBuilder, NoteInMemory, VaultBuilder, VaultOptions},
         vault::Vault,
     };
     use serde::de::DeserializeOwned;
@@ -196,7 +196,7 @@ mod tests {
 
     fn create_vault_with_diplicates_files<F>() -> (Vault<F>, TempDir)
     where
-        F: ObFileRead,
+        F: NoteRead,
         F::Error: From<std::io::Error>,
         F::Properties: DeserializeOwned,
     {
@@ -223,7 +223,7 @@ mod tests {
 
     fn create_vault_without_diplicates_files<F>() -> (Vault<F>, TempDir)
     where
-        F: ObFileRead,
+        F: NoteRead,
         F::Error: From<std::io::Error>,
         F::Properties: DeserializeOwned,
     {
@@ -245,7 +245,7 @@ mod tests {
     #[cfg_attr(feature = "logging", test_log::test)]
     #[cfg_attr(not(feature = "logging"), test)]
     fn with_duplicates_notes_by_name() {
-        let (vault, _path) = create_vault_with_diplicates_files::<ObFileInMemory>();
+        let (vault, _path) = create_vault_with_diplicates_files::<NoteInMemory>();
 
         let duplicated_notes: Vec<_> = vault
             .get_duplicates_notes_by_name()
@@ -260,7 +260,7 @@ mod tests {
     #[cfg_attr(feature = "logging", test_log::test)]
     #[cfg_attr(not(feature = "logging"), test)]
     fn without_duplicates_notes_by_name() {
-        let (vault, _path) = create_vault_without_diplicates_files::<ObFileInMemory>();
+        let (vault, _path) = create_vault_without_diplicates_files::<NoteInMemory>();
 
         let duplicated_notes: Vec<_> = vault
             .get_duplicates_notes_by_name()
@@ -276,7 +276,7 @@ mod tests {
     #[cfg_attr(not(feature = "logging"), test)]
     #[cfg(feature = "rayon")]
     fn par_with_duplicates_notes_by_name() {
-        let (vault, _path) = create_vault_with_diplicates_files::<ObFileInMemory>();
+        let (vault, _path) = create_vault_with_diplicates_files::<NoteInMemory>();
 
         let duplicated_notes: Vec<_> = vault
             .par_get_duplicates_notes_by_name()
@@ -292,7 +292,7 @@ mod tests {
     #[cfg_attr(not(feature = "logging"), test)]
     #[cfg(feature = "rayon")]
     fn par_without_duplicates_notes_by_name() {
-        let (vault, _path) = create_vault_without_diplicates_files::<ObFileInMemory>();
+        let (vault, _path) = create_vault_without_diplicates_files::<NoteInMemory>();
 
         let duplicated_notes: Vec<_> = vault
             .par_get_duplicates_notes_by_name()
@@ -307,7 +307,7 @@ mod tests {
     #[cfg_attr(not(feature = "logging"), test)]
     #[cfg(feature = "digest")]
     fn with_duplicates_notes_by_content() {
-        let (vault, _path) = create_vault_with_diplicates_files::<ObFileInMemory>();
+        let (vault, _path) = create_vault_with_diplicates_files::<NoteInMemory>();
 
         let duplicated_notes: Vec<_> = vault
             .get_duplicates_notes_by_content::<sha2::Sha256>()
@@ -328,7 +328,7 @@ mod tests {
     #[cfg_attr(not(feature = "logging"), test)]
     #[cfg(feature = "digest")]
     fn without_duplicates_notes_by_content() {
-        let (vault, _path) = create_vault_without_diplicates_files::<ObFileInMemory>();
+        let (vault, _path) = create_vault_without_diplicates_files::<NoteInMemory>();
 
         let duplicated_notes: Vec<_> = vault
             .get_duplicates_notes_by_content::<sha2::Sha256>()
