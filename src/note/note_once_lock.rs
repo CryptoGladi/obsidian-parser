@@ -16,9 +16,10 @@ use thiserror::Error;
 
 /// On-disk representation of an Obsidian note file with cache
 ///
-/// # Warning
-/// **It is not thread-safe!**
-/// Use [`NoteOnceLock`]
+/// # Other
+/// If we not use thread-safe, use [`NoteOnceCell`]
+///
+/// [`NoteOnceCell`]: crate::note::note_once_cell::NoteOnceCell
 #[derive(Debug, Default, PartialEq, Eq, Clone)]
 pub struct NoteOnceLock<T = DefaultProperties>
 where

@@ -98,8 +98,6 @@
 //! - 💾 Peak memory: 900KB per 1000 notes
 //!
 //! Parallel processing via Rayon (enable `rayon` feature)
-//!
-//! #
 
 #![warn(missing_docs)]
 #![warn(clippy::pedantic)]

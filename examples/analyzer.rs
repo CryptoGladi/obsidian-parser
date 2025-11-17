@@ -44,8 +44,20 @@ fn main() {
 
     println!(
         "Check unique note name: {}",
-        vault.have_duplicates_notes_by_name()
+        !vault.par_have_duplicates_notes_by_name()
     );
+
+    let word_count: usize = vault
+        .notes()
+        .iter()
+        .map(|note| {
+            note.content()
+                .unwrap_or_default()
+                .split_whitespace()
+                .count()
+        })
+        .sum();
+    println!("Word count: {word_count}");
 
     let get_graph = Instant::now();
     let ungraph = vault.par_get_ungraph().unwrap();

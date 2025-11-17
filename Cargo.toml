@@ -44,7 +44,7 @@ rustc-args = ["--cfg", "docsrs"]
 
 [[example]]
 name = "analyzer"
-required-features = ["petgraph", "logging"]
+required-features = ["petgraph", "digest", "rayon"]
 
 [[bench]]
 name = "benchmarks"
