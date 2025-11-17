@@ -16,7 +16,7 @@
 //! Add to `Cargo.toml`:
 //! ```toml
 //! [dependencies]
-//! obsidian-parser = { version = "0.6", features = ["petgraph", "rayon"] }
+//! obsidian-parser = { version = "0.7", features = ["petgraph", "rayon", "digest"] }
 //! ```
 //!
 //! ## Examples
@@ -27,7 +27,7 @@
 //! use serde::Deserialize;
 //!
 //! // Parse single file with `HashMap`
-//! let note_hashmap = ObFileInMemory::from_file_default("note.md").unwrap();
+//! let note_hashmap = NoteInMemory::from_file_default("note.md").unwrap();
 //!
 //! println!("Content: {}", note_hashmap.content().unwrap());
 //! println!("Properties: {:#?}", note_hashmap.properties().unwrap().unwrap());
@@ -40,7 +40,7 @@
 //!     priority: u8,
 //! }
 //!
-//! let note_with_serde: ObFileInMemory<NoteProperties> = ObFileInMemory::from_file("note.md").unwrap();
+//! let note_with_serde: NoteInMemory<NoteProperties> = NoteInMemory::from_file("note.md").unwrap();
 //! ```
 //!
 //! ### Vault Analysis
@@ -48,16 +48,21 @@
 //! use obsidian_parser::prelude::*;
 //!
 //! // Load entire vault
-//! let vault = Vault::open_default("/path/to/vault").unwrap();
+//! let options = VaultOptions::new("/path/to/vault");
+//! let vault: VaultInMemory = VaultBuilder::new(&options)
+//!     .into_iter()
+//!     .filter_map(Result::ok)
+//!     .build_vault(&options)
+//!     .unwrap();
 //!
 //! // Check for duplicate note names
-//! if !vault.check_unique_note_name() {
+//! if !vault.have_duplicates_notes_by_name() {
 //!     eprintln!("Duplicate note names detected!");
 //! }
 //!
-//! // Access parsed files
-//! for file in vault.files {
-//!   println!("Note: {:?}", file.path());
+//! // Access parsed notes
+//! for note in vault.notes() {
+//!   println!("Note: {:?}", note);
 //! }
 //! ```
 //!
@@ -68,8 +73,14 @@
 //!     use obsidian_parser::prelude::*;
 //!     use petgraph::dot::{Dot, Config};
 //!
-//!     let vault = Vault::open_default("/path/to/vault").unwrap();
-//!     let graph = vault.get_digraph();
+//!     let options = VaultOptions::new("/path/to/vault");
+//!     let vault: VaultInMemory = VaultBuilder::new(&options)
+//!         .into_iter()
+//!         .filter_map(Result::ok)
+//!         .build_vault(&options)
+//!         .unwrap();
+//!
+//!     let graph = vault.get_digraph().unwrap();
 //!     
 //!     // Export to Graphviz format
 //!     println!("{:?}", Dot::with_config(&graph, &[Config::EdgeNoLabel]));
@@ -78,10 +89,9 @@
 //!     let most_connected = graph.node_indices()
 //!         .max_by_key(|n| graph.edges(*n).count())
 //!         .unwrap();
-//!     println!("Knowledge hub: {}", graph[most_connected]);
+//!     println!("Knowledge hub: {:?}", graph[most_connected]);
 //! }
 //! ```
-//!
 //! ## Performance
 //! Optimized for large vaults:
 //! - 🚀 1000 files parsed in 2.6 ms (avg)
@@ -101,10 +111,10 @@
 #![warn(clippy::unreadable_literal)]
 #![warn(clippy::missing_const_for_fn)]
 #![warn(clippy::as_conversions)]
+#![allow(clippy::missing_errors_doc)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
-pub mod error;
-pub mod obfile;
+pub mod note;
 pub mod prelude;
 pub mod vault;
 

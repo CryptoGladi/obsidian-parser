@@ -1,47 +1,65 @@
 use super::index::Index;
-use crate::{
-    obfile::{ObFile, parse_links},
-    vault::Vault,
-};
+use crate::note::parser::parse_links;
+use crate::{note::Note, vault::Vault};
 use petgraph::{EdgeType, Graph};
 use std::path::Path;
 
-pub struct GraphBuilder<'a, F, Ty>
+pub struct GraphBuilder<'a, F>
 where
-    F: ObFile + Send + Sync,
-    Ty: EdgeType + Send,
+    F: Note,
 {
     vault: &'a Vault<F>,
-    graph: Graph<String, (), Ty>,
 }
 
-impl<'a, F, Ty> GraphBuilder<'a, F, Ty>
+impl<'a, F> GraphBuilder<'a, F>
 where
-    F: ObFile + Send + Sync,
-    Ty: EdgeType + Send,
+    F: Note,
 {
-    pub(crate) const fn new(vault: &'a Vault<F>, graph: Graph<String, (), Ty>) -> Self {
-        Self { vault, graph }
+    pub(crate) const fn new(vault: &'a Vault<F>) -> Self {
+        Self { vault }
     }
 
-    pub(crate) fn build(mut self) -> Graph<String, (), Ty> {
+    pub(crate) fn build<Ty>(self) -> Result<Graph<&'a F, (), Ty>, F::Error>
+    where
+        Ty: EdgeType,
+    {
         #[cfg(feature = "logging")]
         log::debug!(
-            "Building graph for vault: {} ({} files)",
+            "Building graph for vault: {} ({} notes)",
             self.vault.path.display(),
-            self.vault.files.len()
+            self.vault.count_notes()
         );
 
-        let index = self.create_index();
-        self.create_edges(&index);
+        let (index, mut graph) = self.create_index_with_graph();
+        self.create_edges(&index, &mut graph)?;
 
         #[cfg(feature = "logging")]
+        log::debug!("Graph construction complete. Edges: {}", graph.edge_count());
+
+        Ok(graph)
+    }
+
+    #[cfg(feature = "rayon")]
+    pub(crate) fn par_build<Ty>(self) -> Result<Graph<&'a F, (), Ty>, F::Error>
+    where
+        F: Send + Sync,
+        F::Error: Send,
+        Ty: EdgeType + Send,
+    {
+        #[cfg(feature = "logging")]
         log::debug!(
-            "Graph construction complete. Edges: {}",
-            self.graph.edge_count()
+            "Building graph for vault: {} ({} notes)",
+            self.vault.path.display(),
+            self.vault.count_notes()
         );
 
-        self.graph
+        let (index, mut graph) = self.create_index_with_graph();
+        self.par_create_edges(&index, &mut graph)?;
+
+        #[cfg(feature = "logging")]
+        log::debug!("Graph construction complete. Edges: {}", graph.edge_count());
+
+        Ok(graph)
     }
 
     /// Get relative path
@@ -67,35 +85,49 @@ where
             .to_string()
     }
 
-    fn create_index(&mut self) -> Index {
+    fn create_index_with_graph<Ty>(&self) -> (Index, Graph<&'a F, (), Ty>)
+    where
+        Ty: EdgeType,
+    {
         #[cfg(feature = "logging")]
         log::debug!("Creating index...");
 
+        let mut graph = Graph::default();
         let mut index = Index::default();
 
         #[allow(
             clippy::unwrap_used,
             reason = "When creating a Vault, the path will be mandatory"
         )]
-        for file in &self.vault.files {
-            let full = Self::relative_path(file, &self.vault.path);
-            let short = file.note_name().unwrap();
+        for note in self.vault.notes() {
+            let full = Self::relative_path(note, &self.vault.path);
+            let short = note.note_name().unwrap();
 
-            let node = self.graph.add_node(full.clone());
+            let node = graph.add_node(note);
             index.insert(full, short, node);
         }
 
         #[cfg(feature = "logging")]
-        log::debug!("Done create index for {} files", self.vault.files.len());
+        log::debug!("Done create index for {} notes", self.vault.count_notes());
 
-        index
+        (index, graph)
     }
 
     /// Builds edges between nodes in the graph
     ///
     /// Uses parallel processing when `rayon` feature is enabled
     #[cfg(feature = "rayon")]
-    fn create_edges(&mut self, index: &Index) {
+    fn par_create_edges<Ty>(
+        &self,
+        index: &Index,
+        graph: &mut Graph<&'a F, (), Ty>,
+    ) -> Result<(), F::Error>
+    where
+        F: Send + Sync,
+        F::Error: Send,
+        Ty: EdgeType + Send,
+    {
+        use petgraph::graph::NodeIndex;
         use rayon::prelude::*;
 
         const CHUNK_SIZE: usize = 10;
@@ -103,62 +135,90 @@ where
         #[cfg(feature = "logging")]
         log::debug!("Using parallel edge builder (rayon enabled)");
 
+        #[allow(clippy::items_after_statements)]
+        enum Data<'a, E: Send> {
+            Successful(Vec<(&'a NodeIndex, NodeIndex)>),
+            Error(E),
+        }
+
         let (tx, rx) = crossbeam_channel::unbounded();
-        let files = &self.vault.files;
+        let notes = &self.vault.notes();
         let strip_prefix = &self.vault.path;
-        let graph = &mut self.graph;
+        let mut result = Ok(());
 
         rayon::scope(|s| {
             s.spawn(|_| {
-                files
+                notes
                     .into_par_iter()
                     .chunks(CHUNK_SIZE)
-                    .for_each_with(tx, |tx, files| {
+                    .for_each_with(tx, |tx, notes| {
                         let mut result = Vec::with_capacity(10 * CHUNK_SIZE);
 
-                        for file in files {
-                            let path = Self::relative_path(file, strip_prefix);
-                            let node_to = index.full[&path];
+                        for note in notes {
+                            let path = Self::relative_path(note, strip_prefix);
 
-                            parse_links(&file.content().expect("read content"))
-                                .filter_map(|link| index.get(link))
-                                .map(|node_from| (node_to, *node_from))
-                                .for_each(|x| result.push(x));
+                            if let Some(node_to) = index.full(&path) {
+                                match note.content() {
+                                    Ok(content) => parse_links(&content)
+                                        .filter_map(|link| index.get(link))
+                                        .map(|node_from| (node_to, *node_from))
+                                        .for_each(|x| result.push(x)),
+                                    Err(error) => tx.send(Data::Error(error)).expect("Send error"),
+                                }
+                            }
                         }
 
                         #[allow(clippy::unwrap_used)]
-                        tx.send(result).unwrap();
+                        tx.send(Data::Successful(result)).unwrap();
                     });
             });
 
             s.spawn(|_| {
-                while let Ok(result) = rx.recv() {
-                    for (node_to, node_from) in result {
-                        graph.add_edge(node_to, node_from, ());
+                while let Ok(recv) = rx.recv() {
+                    match recv {
+                        Data::Successful(notes) => {
+                            for (note_to, note_from) in notes {
+                                graph.add_edge(*note_to, note_from, ());
+                            }
+                        }
+                        Data::Error(error) => result = Err(error),
                     }
                 }
             });
         });
+
+        result
     }
 
     /// Builds edges between nodes in the graph
     ///
     /// Uses parallel processing when `rayon` feature is enabled
-    #[cfg(not(feature = "rayon"))]
-    fn create_edges(&mut self, index: &Index) {
+    fn create_edges<Ty>(
+        &self,
+        index: &Index,
+        graph: &mut Graph<&'a F, (), Ty>,
+    ) -> Result<(), F::Error>
+    where
+        Ty: EdgeType,
+    {
         #[cfg(feature = "logging")]
         log::debug!("Using sequential edge builder");
 
-        for file in &self.vault.files {
+        for file in self.vault.notes() {
             let path = Self::relative_path(file, &self.vault.path);
-            let node_to = index.full[&path];
 
-            parse_links(&file.content().expect("read content"))
-                .filter_map(|link| index.get(link))
-                .map(|node_from| (node_to, *node_from))
-                .for_each(|(node_to, node_from)| {
-                    self.graph.add_edge(node_to, node_from, ());
-                });
+            if let Some(node_to) = index.full(&path) {
+                let content = file.content()?;
+
+                parse_links(&content)
+                    .filter_map(|link| index.get(link))
+                    .map(|node_from| (node_to, *node_from))
+                    .for_each(|(node_to, node_from)| {
+                        graph.add_edge(*node_to, node_from, ());
+                    });
+            }
         }
+
+        Ok(())
     }
 }

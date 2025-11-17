@@ -15,68 +15,73 @@ Blazingly fast Rust library for parsing and analyzing [Obsidian](https://obsidia
 Add to `Cargo.toml`:
 ```toml
 [dependencies]
-obsidian-parser = "0.6"
+obsidian-parser = "0.7"
 ```
 ### Basic Usage
-*  Parsing
+* Basic Parsing
 ```rust
 use obsidian_parser::prelude::*;
 use serde::Deserialize;
 
 // Parse single file with `HashMap`
-let note_hashmap = ObFileInMemory::from_file_default("note.md").unwrap();
-
+let note_hashmap = NoteInMemory::from_file_default("note.md").unwrap();
 println!("Content: {}", note_hashmap.content().unwrap());
 println!("Properties: {:#?}", note_hashmap.properties().unwrap().unwrap());
 
 // Parse single file with custom struct
 #[derive(Clone, Deserialize)]
 struct NoteProperties {
-     created: String,
-     tags: Vec<String>,
-     priority: u8,
- }
-
-let note_with_serde: ObFileInMemory<NoteProperties> = ObFileInMemory::from_file("note.md").unwrap();
+    created: String,
+    tags: Vec<String>,
+    priority: u8,
+}
+let note_with_serde: NoteInMemory<NoteProperties> = NoteInMemory::from_file("note.md").unwrap();
 ```
-* Vault
+* Vault Analysis
 ```rust
 use obsidian_parser::prelude::*;
 
 // Load entire vault
-let vault = Vault::open_default("/path/to/vault").unwrap();
+let options = VaultOptions::new("/path/to/vault");
+let vault: VaultInMemory = VaultBuilder::new(&options)
+    .into_iter()
+    .filter_map(Result::ok)
+    .build_vault(&options)
+    .unwrap();
 
 // Check for duplicate note names
-if !vault.check_unique_note_name() {
-     eprintln!("Duplicate note names detected!");
+if !vault.have_duplicates_notes_by_name() {
+    eprintln!("Duplicate note names detected!");
 }
 
-// Access parsed files
-for file in vault.files {
-   println!("Note: {:?}", file.path());
+// Access parsed notes
+for note in vault.notes() {
+  println!("Note: {:?}", note);
 }
 ```
-### Graph Analysis (requires [`petgraph`](https://docs.rs/petgraph/latest/petgraph) feature)
-Enable in `Cargo.toml`:
-```toml
-obsidian-parser = { version = "0.6", features = ["petgraph"] }
-# obsidian-parser = { version = "0.6", features = ["petgraph", "rayon"] } is fast
-```
-Then:
+* Graph Analysis (requires [`petgraph`](https://docs.rs/petgraph/latest/petgraph) feature)
 ```rust
-use obsidian_parser::prelude::*;
-use petgraph::dot::{Dot, Config};
-
-let vault = Vault::open_default("/path/to/vault").unwrap();
-let graph = vault.get_digraph().unwrap();
-// Export to Graphviz format
-println!("{:?}", Dot::with_config(&graph, &[Config::EdgeNoLabel]));
-
-// Find most connected note
-let most_connected = graph.node_indices()
-    .max_by_key(|n| graph.edges(*n).count())
-    .unwrap();
-println!("Knowledge hub: {}", graph[most_connected]);
+#[cfg(feature = "petgraph")]
+{
+    use obsidian_parser::prelude::*;
+    use petgraph::dot::{Dot, Config};
+    let options = VaultOptions::new("/path/to/vault");
+    let vault: VaultInMemory = VaultBuilder::new(&options)
+        .into_iter()
+        .filter_map(Result::ok)
+        .build_vault(&options)
+        .unwrap();
+    let graph = vault.get_digraph().unwrap();
+    
+    // Export to Graphviz format
+    println!("{:?}", Dot::with_config(&graph, &[Config::EdgeNoLabel]));
+    
+    // Find most connected note
+    let most_connected = graph.node_indices()
+        .max_by_key(|n| graph.edges(*n).count())
+        .unwrap();
+    println!("Knowledge hub: {:?}", graph[most_connected]);
+}
 ```
 ## Example: Analyze Knowledge Connectivity
 Included example `analyzer` calculates connected components in your Obsidian vault's knowledge graph:

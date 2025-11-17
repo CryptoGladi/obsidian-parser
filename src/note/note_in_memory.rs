@@ -1,13 +1,13 @@
 //! In-memory representation of an Obsidian note file
 
+use super::{DefaultProperties, Note, NoteRead};
+use crate::note::parser::{self, ResultParse, parse_note};
+use serde::de::DeserializeOwned;
 use std::{
     borrow::Cow,
     path::{Path, PathBuf},
 };
-
-use super::{DefaultProperties, ObFile, ObFileRead, parse_obfile};
-use crate::{error::Error, obfile::ResultParse};
-use serde::de::DeserializeOwned;
+use thiserror::Error;
 
 /// In-memory representation of an Obsidian note file
 ///
@@ -21,11 +21,11 @@ use serde::de::DeserializeOwned;
 /// - Uses ~2x memory of original file size (UTF-8 + deserialized properties)
 /// - Preferred for small-to-medium vaults (<10k notes)
 ///
-/// For large vaults or read-heavy workflows, consider [`ObFileOnDisk`].
+/// For large vaults or read-heavy workflows, consider [`NoteOnDisk`].
 ///
-/// [`ObFileOnDisk`]: crate::obfile::obfile_on_disk::ObFileOnDisk
+/// [`NoteOnDisk`]: crate::note::note_on_disk::NoteOnDisk
 #[derive(Debug, Default, PartialEq, Eq, Clone)]
-pub struct ObFileInMemory<T = DefaultProperties>
+pub struct NoteInMemory<T = DefaultProperties>
 where
     T: Clone,
 {
@@ -39,29 +39,69 @@ where
     properties: Option<T>,
 }
 
-impl<T> ObFile for ObFileInMemory<T>
+/// Errors in [`NoteInMemory`]
+#[derive(Debug, Error)]
+pub enum Error {
+    /// I/O operation failed (file reading, directory traversal, etc.)
+    #[error("IO error: {0}")]
+    IO(#[from] std::io::Error),
+
+    /// Invalid frontmatter format detected
+    ///
+    /// Occurs when:
+    /// - Frontmatter delimiters are incomplete (`---` missing)
+    /// - Content between delimiters is empty
+    ///
+    /// # Example
+    /// Parsing a file with malformed frontmatter:
+    /// ```text
+    /// ---
+    /// incomplete yaml
+    /// // Missing closing ---
+    /// ```
+    #[error("Invalid frontmatter format")]
+    InvalidFormat(#[from] parser::Error),
+
+    /// YAML parsing error in frontmatter properties
+    ///
+    /// # Example
+    /// Parsing invalid YAML syntax:
+    /// ```text
+    /// ---
+    /// key: @invalid_value
+    /// ---
+    /// ```
+    #[error("YAML parsing error: {0}")]
+    Yaml(#[from] serde_yml::Error),
+}
+
+impl<T> Note for NoteInMemory<T>
 where
     T: Clone,
 {
     type Properties = T;
+    type Error = self::Error;
 
+    /// Get [`Self::Properties`]
     #[inline]
-    fn properties(&self) -> Result<Option<Cow<'_, T>>, Error> {
+    fn properties(&self) -> Result<Option<Cow<'_, T>>, Self::Error> {
         Ok(self.properties.as_ref().map(|p| Cow::Borrowed(p)))
     }
 
+    /// Get contents
     #[inline]
-    fn content(&self) -> Result<Cow<'_, str>, Error> {
+    fn content(&self) -> Result<Cow<'_, str>, Self::Error> {
         Ok(Cow::Borrowed(&self.content))
     }
 
+    /// Get path to file
     #[inline]
     fn path(&self) -> Option<Cow<'_, Path>> {
         self.path.as_ref().map(|p| Cow::Borrowed(p.as_path()))
     }
 }
 
-impl<T> ObFileRead for ObFileInMemory<T>
+impl<T> NoteRead for NoteInMemory<T>
 where
     T: DeserializeOwned + Clone,
 {
@@ -95,7 +135,7 @@ where
     /// ---
     /// Content"#;
     ///
-    /// let file: ObFileInMemory<NoteProperties> = ObFileInMemory::from_string(note, None::<&str>).unwrap();
+    /// let file: NoteInMemory<NoteProperties> = NoteInMemory::from_string(note, None::<&str>).unwrap();
     /// let properties = file.properties().unwrap().unwrap();
     ///
     /// assert_eq!(properties.title, "Example");
@@ -104,7 +144,7 @@ where
     fn from_string(
         raw_text: impl AsRef<str>,
         path: Option<impl AsRef<Path>>,
-    ) -> Result<Self, Error> {
+    ) -> Result<Self, Self::Error> {
         let path_buf = path.map(|x| x.as_ref().to_path_buf());
         let raw_text = raw_text.as_ref();
 
@@ -117,7 +157,7 @@ where
                 .unwrap_or_default()
         );
 
-        match parse_obfile(raw_text)? {
+        match parse_note(raw_text)? {
             ResultParse::WithProperties {
                 content,
                 properties,
@@ -148,11 +188,15 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::obfile::impl_tests::{
-        impl_all_tests_flush, impl_all_tests_from_file, impl_all_tests_from_string,
+    use crate::note::{
+        note_read::tests::{
+            impl_all_tests_from_file, impl_all_tests_from_reader, impl_all_tests_from_string,
+        },
+        note_write::tests::impl_all_tests_flush,
     };
 
-    impl_all_tests_from_string!(ObFileInMemory);
-    impl_all_tests_from_file!(ObFileInMemory);
-    impl_all_tests_flush!(ObFileInMemory);
+    impl_all_tests_from_reader!(NoteInMemory);
+    impl_all_tests_from_string!(NoteInMemory);
+    impl_all_tests_from_file!(NoteInMemory);
+    impl_all_tests_flush!(NoteInMemory);
 }

@@ -1,6 +1,7 @@
 use clap::Parser;
-use obsidian_parser::prelude::*;
+use obsidian_parser::{prelude::*, vault::vault_open::VaultBuilder};
 use petgraph::algo::connected_components;
+use rayon::prelude::*;
 use std::{path::PathBuf, time::Instant};
 
 fn parse_path(s: &str) -> Result<PathBuf, String> {
@@ -25,11 +26,42 @@ fn main() {
     let args = Args::parse();
 
     let open_vault = Instant::now();
-    let vault = Vault::open_default(&args.path).unwrap();
+    let options = VaultOptions::new(&args.path);
+    let files = VaultBuilder::new(&options)
+        .include_hidden(false)
+        .into_par_iter()
+        .filter_map(|note| match note {
+            Ok(note) => Some(note),
+            Err(error) => {
+                eprintln!("Parsed error: {}", error);
+                None
+            }
+        });
+
+    let vault: VaultOnceLock = files.build_vault(&options).unwrap();
     println!("Time open vault: {:.2?}", open_vault.elapsed());
+    println!("Count notes: {}", vault.count_notes());
+
+    println!(
+        "Check unique note name: {}",
+        !vault.par_have_duplicates_notes_by_name()
+    );
+
+    let word_count: usize = vault
+        .notes()
+        .iter()
+        .map(|note| {
+            note.content()
+                .unwrap_or_default()
+                .split_whitespace()
+                .count()
+        })
+        .sum();
+    println!("Word count: {word_count}");
 
     let get_graph = Instant::now();
-    let ungraph = vault.get_ungraph();
+    let ungraph = vault.par_get_ungraph().unwrap();
+
     println!("Time get graph: {:.2?}", get_graph.elapsed());
 
     println!("Count nodes in graph: {}", ungraph.node_count());
@@ -45,12 +77,5 @@ fn main() {
         .node_indices()
         .max_by_key(|n| ungraph.edges(*n).count())
         .unwrap();
-    println!("Knowledge hub in ungraph: {}", ungraph[most_connected]);
-
-    let digraph = vault.get_digraph();
-    let most_connected = digraph
-        .node_indices()
-        .max_by_key(|n| digraph.edges(*n).count())
-        .unwrap();
-    println!("Knowledge hub in digraph: {}", digraph[most_connected]);
+    println!("Knowledge hub in ungraph: {:?}", ungraph[most_connected]);
 }
