@@ -39,7 +39,7 @@ rayon = ["dep:rayon", "dep:crossbeam-channel"]
 digest = ["dep:digest"]
 
 [package.metadata.docs.rs]
-all-features = true
+features = ["petgraph", "rayon"] # digest is break doc_auto_cfg
 rustc-args = ["--cfg", "docsrs"]
 
 [[example]]
