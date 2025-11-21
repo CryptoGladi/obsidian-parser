@@ -3,18 +3,16 @@
 pub mod note_default;
 pub mod note_in_memory;
 pub mod note_on_disk;
-pub mod note_once_cell;
-pub mod note_once_lock;
+//pub mod note_once_cell;
+//pub mod note_once_lock;
 pub mod note_read;
-pub mod note_read_write;
 pub mod note_write;
 pub mod parser;
 
 use std::{borrow::Cow, collections::HashMap, fs::OpenOptions, path::Path};
 
 pub use note_default::NoteDefault;
-pub use note_read::NoteRead;
-pub use note_read_write::NoteReadWrite;
+pub use note_read::{NoteFromFile, NoteFromReader, NoteFromString};
 pub use note_write::NoteWrite;
 
 pub(crate) type DefaultProperties = HashMap<String, serde_yml::Value>;

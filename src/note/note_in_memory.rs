@@ -1,10 +1,11 @@
 //! In-memory representation of an Obsidian note file
 
-use super::{DefaultProperties, Note, NoteRead};
+use super::{DefaultProperties, Note, NoteFromFile, NoteFromReader, NoteFromString};
 use crate::note::parser::{self, ResultParse, parse_note};
 use serde::de::DeserializeOwned;
 use std::{
     borrow::Cow,
+    fs::File,
     path::{Path, PathBuf},
 };
 use thiserror::Error;
@@ -101,7 +102,18 @@ where
     }
 }
 
-impl<T> NoteRead for NoteInMemory<T>
+impl<T> NoteInMemory<T>
+where
+    T: Clone,
+{
+    /// Set path to note
+    #[inline]
+    pub fn set_path(&mut self, path: Option<PathBuf>) {
+        self.path = path;
+    }
+}
+
+impl<T> NoteFromString for NoteInMemory<T>
 where
     T: DeserializeOwned + Clone,
 {
@@ -141,21 +153,11 @@ where
     /// assert_eq!(properties.title, "Example");
     /// assert_eq!(file.content().unwrap(), "Content");
     /// ```
-    fn from_string(
-        raw_text: impl AsRef<str>,
-        path: Option<impl AsRef<Path>>,
-    ) -> Result<Self, Self::Error> {
-        let path_buf = path.map(|x| x.as_ref().to_path_buf());
+    fn from_string(raw_text: impl AsRef<str>) -> Result<Self, Self::Error> {
         let raw_text = raw_text.as_ref();
 
         #[cfg(feature = "logging")]
-        log::trace!(
-            "Parsing in-memory note{}",
-            path_buf
-                .as_ref()
-                .map(|p| format!(" from {}", p.display()))
-                .unwrap_or_default()
-        );
+        log::trace!("Parsing in-memory note");
 
         match parse_note(raw_text)? {
             ResultParse::WithProperties {
@@ -168,7 +170,7 @@ where
                 Ok(Self {
                     content: content.to_string(),
                     properties: Some(serde_yml::from_str(properties)?),
-                    path: path_buf,
+                    path: None,
                 })
             }
             ResultParse::WithoutProperties => {
@@ -177,11 +179,29 @@ where
 
                 Ok(Self {
                     content: raw_text.to_string(),
-                    path: path_buf,
+                    path: None,
                     properties: None,
                 })
             }
         }
+    }
+}
+
+impl<T> NoteFromFile for NoteInMemory<T>
+where
+    T: DeserializeOwned + Clone,
+{
+    fn from_file(path: impl AsRef<Path>) -> Result<Self, Self::Error> {
+        let path_buf = path.as_ref().to_path_buf();
+
+        #[cfg(feature = "logging")]
+        log::trace!("Parse obsidian file from file: {}", path_buf.display());
+
+        let mut file = File::open(&path_buf)?;
+        let mut note = Self::from_reader(&mut file)?;
+        note.set_path(Some(path_buf));
+
+        Ok(note)
     }
 }
 

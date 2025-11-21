@@ -3,10 +3,7 @@
 pub mod options;
 
 use super::Vault;
-use crate::{
-    note::{Note, NoteRead},
-    prelude::NoteOnDisk,
-};
+use crate::note::{Note, NoteFromFile, note_on_disk::NoteOnDisk};
 pub use options::VaultOptions;
 use serde::de::DeserializeOwned;
 use std::{
@@ -158,7 +155,7 @@ impl<'a> VaultBuilder<'a> {
     #[allow(clippy::should_implement_trait)]
     pub fn into_iter<F>(self) -> impl Iterator<Item = Result<F, F::Error>>
     where
-        F: NoteRead,
+        F: NoteFromFile,
         F::Properties: DeserializeOwned,
         F::Error: From<std::io::Error>,
     {
@@ -173,7 +170,7 @@ impl<'a> VaultBuilder<'a> {
     #[must_use]
     pub fn into_par_iter<F>(self) -> impl rayon::iter::ParallelIterator<Item = Result<F, F::Error>>
     where
-        F: NoteRead + Send,
+        F: NoteFromFile + Send,
         F::Properties: DeserializeOwned,
         F::Error: From<std::io::Error> + Send,
     {
@@ -294,7 +291,7 @@ mod tests {
 
     fn impl_open<F>(path: impl AsRef<Path>) -> Result<Vault<F>, Error>
     where
-        F: NoteRead,
+        F: NoteFromFile,
         F::Error: From<std::io::Error>,
         F::Properties: DeserializeOwned,
     {
@@ -309,7 +306,7 @@ mod tests {
     #[cfg(feature = "rayon")]
     fn impl_par_open<F>(path: impl AsRef<Path>) -> Result<Vault<F>, Error>
     where
-        F: NoteRead + Send,
+        F: NoteFromFile + Send,
         F::Error: From<std::io::Error> + Send,
         F::Properties: DeserializeOwned,
     {

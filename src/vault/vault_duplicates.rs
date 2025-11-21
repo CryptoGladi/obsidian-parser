@@ -200,7 +200,7 @@ where
 #[cfg(test)]
 mod tests {
     use crate::{
-        note::{Note, NoteRead},
+        note::{Note, NoteFromFile},
         prelude::{IteratorVaultBuilder, NoteInMemory, VaultBuilder, VaultOptions},
         vault::Vault,
     };
@@ -210,7 +210,7 @@ mod tests {
 
     fn create_vault_with_diplicates_files<F>() -> (Vault<F>, TempDir)
     where
-        F: NoteRead,
+        F: NoteFromFile,
         F::Error: From<std::io::Error>,
         F::Properties: DeserializeOwned,
     {
@@ -237,7 +237,7 @@ mod tests {
 
     fn create_vault_without_diplicates_files<F>() -> (Vault<F>, TempDir)
     where
-        F: NoteRead,
+        F: NoteFromFile,
         F::Error: From<std::io::Error>,
         F::Properties: DeserializeOwned,
     {
