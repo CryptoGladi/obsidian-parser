@@ -3,14 +3,13 @@
 pub mod options;
 
 use super::Vault;
-use crate::note::{Note, NoteFromFile, note_on_disk::NoteOnDisk};
+use crate::note::{Note, note_on_disk::NoteOnDisk};
 pub use options::VaultOptions;
 use serde::de::DeserializeOwned;
 use std::{
     fmt::Debug,
     path::{Path, PathBuf},
 };
-use thiserror::Error;
 use walkdir::{DirEntry, WalkDir};
 
 type FilterEntry = dyn FnMut(&DirEntry) -> bool;
@@ -153,9 +152,10 @@ impl<'a> VaultBuilder<'a> {
 
     /// Into [`VaultBuilder`] to iterator
     #[allow(clippy::should_implement_trait)]
+    #[cfg(not(target_family = "wasm"))]
     pub fn into_iter<F>(self) -> impl Iterator<Item = Result<F, F::Error>>
     where
-        F: NoteFromFile,
+        F: crate::note::note_read::NoteFromFile,
         F::Properties: DeserializeOwned,
         F::Error: From<std::io::Error>,
     {
@@ -167,10 +167,11 @@ impl<'a> VaultBuilder<'a> {
     /// Into [`VaultBuilder`] to parallel iterator
     #[cfg_attr(docsrs, doc(cfg(feature = "rayon")))]
     #[cfg(feature = "rayon")]
+    #[cfg(not(target_family = "wasm"))]
     #[must_use]
     pub fn into_par_iter<F>(self) -> impl rayon::iter::ParallelIterator<Item = Result<F, F::Error>>
     where
-        F: NoteFromFile + Send,
+        F: crate::prelude::NoteFromFile + Send,
         F::Properties: DeserializeOwned,
         F::Error: From<std::io::Error> + Send,
     {
@@ -181,23 +182,11 @@ impl<'a> VaultBuilder<'a> {
     }
 }
 
-/// Errors for [`VaultBuilder`]
-#[derive(Debug, Error)]
-pub enum Error {
-    /// Not found dir
-    #[error("Dir not found in: {0}")]
-    NotFoundDir(PathBuf),
-}
-
 impl<N> Vault<N>
 where
     N: Note,
 {
-    fn impl_build_vault(notes: Vec<N>, options: VaultOptions) -> Result<Self, Error> {
-        if !options.path().is_dir() {
-            return Err(Error::NotFoundDir(options.into_path()));
-        }
-
+    fn impl_build_vault(notes: Vec<N>, options: VaultOptions) -> Self {
         #[cfg(feature = "logging")]
         log::debug!(
             "Building vault for {:?} with {} files",
@@ -205,17 +194,14 @@ where
             notes.len()
         );
 
-        Ok(Self {
+        Self {
             notes,
             path: options.into_path(),
-        })
+        }
     }
 
     /// Build vault from iterator
-    pub fn build_vault(
-        iter: impl Iterator<Item = N>,
-        options: &VaultOptions,
-    ) -> Result<Self, Error> {
+    pub fn build_vault(iter: impl Iterator<Item = N>, options: &VaultOptions) -> Self {
         let notes: Vec<_> = iter.collect();
 
         Self::impl_build_vault(notes, options.clone())
@@ -227,7 +213,7 @@ where
     pub fn par_build_vault(
         iter: impl rayon::iter::ParallelIterator<Item = N>,
         options: &VaultOptions,
-    ) -> Result<Self, Error>
+    ) -> Self
     where
         N: Send,
     {
@@ -244,7 +230,7 @@ where
     N: Note,
 {
     /// Build [`Vault`] from iterator
-    fn build_vault(self, options: &VaultOptions) -> Result<Vault<N>, Error> {
+    fn build_vault(self, options: &VaultOptions) -> Vault<N> {
         Vault::build_vault(self, options)
     }
 }
@@ -259,14 +245,14 @@ where
 /// Trait for build [`Vault`] from parallel iterator
 #[cfg_attr(docsrs, doc(cfg(feature = "rayon")))]
 #[cfg(feature = "rayon")]
-pub trait ParallelIteratorVaultBuilder<F = NoteOnDisk>:
-    rayon::iter::ParallelIterator<Item = F>
+pub trait ParallelIteratorVaultBuilder<N = NoteOnDisk>:
+    rayon::iter::ParallelIterator<Item = N>
 where
-    F: Note + Send,
+    N: Note + Send,
 {
     /// Build [`Vault`] from parallel iterator
     #[cfg_attr(docsrs, doc(cfg(feature = "rayon")))]
-    fn build_vault(self, options: &VaultOptions) -> Result<Vault<F>, Error> {
+    fn build_vault(self, options: &VaultOptions) -> Vault<N> {
         Vault::par_build_vault(self, options)
     }
 }
@@ -280,16 +266,18 @@ where
 }
 
 #[cfg(test)]
+#[cfg(not(target_family = "wasm"))]
 mod tests {
     use super::*;
     use crate::note::note_in_memory;
+    use crate::prelude::NoteFromFile;
     use crate::prelude::NoteInMemory;
     use crate::vault::VaultInMemory;
     use crate::vault::vault_test::create_files_for_vault;
     use std::fs::File;
     use std::io::Write;
 
-    fn impl_open<F>(path: impl AsRef<Path>) -> Result<Vault<F>, Error>
+    fn impl_open<F>(path: impl AsRef<Path>) -> Vault<F>
     where
         F: NoteFromFile,
         F::Error: From<std::io::Error>,
@@ -304,7 +292,7 @@ mod tests {
     }
 
     #[cfg(feature = "rayon")]
-    fn impl_par_open<F>(path: impl AsRef<Path>) -> Result<Vault<F>, Error>
+    fn impl_par_open<F>(path: impl AsRef<Path>) -> Vault<F>
     where
         F: NoteFromFile + Send,
         F::Error: From<std::io::Error> + Send,
@@ -325,7 +313,7 @@ mod tests {
     fn open() {
         let (path, vault_notes) = create_files_for_vault().unwrap();
 
-        let vault: VaultInMemory = impl_open(&path).unwrap();
+        let vault: VaultInMemory = impl_open(&path);
 
         assert_eq!(vault.count_notes(), vault_notes.len());
         assert_eq!(vault.path(), path.path());
@@ -337,45 +325,10 @@ mod tests {
     fn par_open() {
         let (path, vault_notes) = create_files_for_vault().unwrap();
 
-        let vault: VaultInMemory = impl_par_open(&path).unwrap();
+        let vault: VaultInMemory = impl_par_open(&path);
 
         assert_eq!(vault.count_notes(), vault_notes.len());
         assert_eq!(vault.path(), path.path());
-    }
-
-    #[cfg_attr(feature = "logging", test_log::test)]
-    #[cfg_attr(not(feature = "logging"), test)]
-    fn open_not_dir() {
-        let (path, _) = create_files_for_vault().unwrap();
-
-        let options = VaultOptions::new(&path);
-        let files = VaultBuilder::new(&options)
-            .into_iter()
-            .map(|file| file.unwrap());
-
-        drop(path); // Delete folder
-
-        let result: Result<VaultInMemory, _> = files.build_vault(&options);
-        assert!(matches!(result, Err(Error::NotFoundDir(_))));
-    }
-
-    #[cfg_attr(feature = "logging", test_log::test)]
-    #[cfg_attr(not(feature = "logging"), test)]
-    #[cfg(feature = "rayon")]
-    fn par_open_not_dir() {
-        use rayon::prelude::*;
-
-        let (path, _) = create_files_for_vault().unwrap();
-
-        let options = VaultOptions::new(&path);
-        let files = VaultBuilder::new(&options)
-            .into_par_iter()
-            .filter_map(Result::ok);
-
-        drop(path); // Delete folder
-
-        let result: Result<VaultInMemory, _> = files.build_vault(&options);
-        assert!(matches!(result, Err(Error::NotFoundDir(_))));
     }
 
     #[cfg_attr(feature = "logging", test_log::test)]
@@ -384,7 +337,7 @@ mod tests {
         let (path, vault_notes) = create_files_for_vault().unwrap();
         File::create(path.path().join("extra_file.not_md")).unwrap();
 
-        let vault: VaultInMemory = impl_open(&path).unwrap();
+        let vault: VaultInMemory = impl_open(&path);
 
         assert_eq!(vault.count_notes(), vault_notes.len());
         assert_eq!(vault.path(), path.path());
@@ -397,7 +350,7 @@ mod tests {
         let (path, vault_notes) = create_files_for_vault().unwrap();
         File::create(path.path().join("extra_file.not_md")).unwrap();
 
-        let vault: VaultInMemory = impl_par_open(&path).unwrap();
+        let vault: VaultInMemory = impl_par_open(&path);
 
         assert_eq!(vault.count_notes(), vault_notes.len());
         assert_eq!(vault.path(), path.path());
@@ -466,8 +419,7 @@ mod tests {
                     None
                 }
             })
-            .build_vault(&options)
-            .unwrap();
+            .build_vault(&options);
 
         assert_eq!(vault.count_notes(), vault_notes.len());
         assert_eq!(vault.path(), path.path());
@@ -503,8 +455,7 @@ mod tests {
                     None
                 }
             })
-            .build_vault(&options)
-            .unwrap();
+            .build_vault(&options);
 
         assert_eq!(vault.count_notes(), vault_notes.len());
         assert_eq!(vault.path(), path.path());
@@ -530,15 +481,13 @@ mod tests {
             .include_hidden(true)
             .into_iter()
             .map(|file| file.unwrap())
-            .build_vault(&options)
-            .unwrap();
+            .build_vault(&options);
 
         let vault_without_hidden: VaultInMemory = VaultBuilder::new(&options)
             .include_hidden(false)
             .into_iter()
             .map(|file| file.unwrap())
-            .build_vault(&options)
-            .unwrap();
+            .build_vault(&options);
 
         assert_eq!(vault_with_hidden.count_notes(), files.len() + 1);
         assert_eq!(vault_without_hidden.count_notes(), files.len());
@@ -554,8 +503,7 @@ mod tests {
             .max_depth(1) // Without `data/main.md`
             .into_iter()
             .map(|file| file.unwrap())
-            .build_vault(&options)
-            .unwrap();
+            .build_vault(&options);
 
         assert_eq!(vault.count_notes(), 2);
     }
@@ -570,8 +518,7 @@ mod tests {
             .min_depth(2) // Only `data/main.md`
             .into_iter()
             .map(|file| file.unwrap())
-            .build_vault(&options)
-            .unwrap();
+            .build_vault(&options);
 
         assert_eq!(vault.count_notes(), 1);
     }
@@ -586,8 +533,7 @@ mod tests {
             .filter_entry(|entry| !entry.file_name().eq_ignore_ascii_case("main.md"))
             .into_iter()
             .map(|file| file.unwrap())
-            .build_vault(&options)
-            .unwrap();
+            .build_vault(&options);
 
         assert_eq!(vault.count_notes(), 1);
     }

@@ -6,13 +6,20 @@ pub mod note_on_disk;
 pub mod note_once_cell;
 pub mod note_once_lock;
 pub mod note_read;
-pub mod note_write;
 pub mod parser;
+
+#[cfg(not(target_family = "wasm"))]
+pub mod note_write;
 
 use std::{borrow::Cow, collections::HashMap, fs::OpenOptions, path::Path};
 
 pub use note_default::NoteDefault;
-pub use note_read::{NoteFromFile, NoteFromReader, NoteFromString};
+pub use note_read::{NoteFromReader, NoteFromString};
+
+#[cfg(not(target_family = "wasm"))]
+pub use note_read::NoteFromFile;
+
+#[cfg(not(target_family = "wasm"))]
 pub use note_write::NoteWrite;
 
 pub(crate) type DefaultProperties = HashMap<String, serde_yml::Value>;
@@ -39,9 +46,8 @@ pub(crate) type DefaultProperties = HashMap<String, serde_yml::Value>;
 /// ```
 ///
 /// # Other
-/// * To open and read [`Note`] to a file, use the [`NoteRead`] trait.
+/// * To open and read [`Note`] to a file, see [`note_read`] module.
 /// * To write and modify [`Note`] to a file, use the [`NoteWrite`] trait.
-/// * To read and write [`Note`] to a file, use the [`NoteReadWrite`] trait.
 pub trait Note: Sized {
     /// Frontmatter properties type
     type Properties: Clone;

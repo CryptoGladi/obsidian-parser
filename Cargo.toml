@@ -1,6 +1,6 @@
 [package]
 name = "obsidian-parser"
-version = "0.7.1"
+version = "0.8.0"
 edition = "2024"
 description = "Blazingly fast Obsidian vault parser with graph analysis"
 repository = "https://github.com/CryptoGladi/obsidian-parser"
@@ -14,7 +14,6 @@ serde = { version = "1", features = ["derive"] }
 thiserror = "2"
 walkdir = "2.5"
 serde_yml = "0.0.12"
-ahash = { version = "0.8", optional = true }
 log = { version = "0.4", optional = true }
 petgraph = { version = "0.8", optional = true }
 rayon = { version = "1", optional = true }
@@ -34,7 +33,7 @@ sha2 = "0.10"
 default = []
 all = ["logging", "petgraph", "rayon", "digest"]
 logging = ["dep:log"]
-petgraph = ["dep:petgraph", "dep:ahash"]
+petgraph = ["dep:petgraph"]
 rayon = ["dep:rayon", "dep:crossbeam-channel"]
 digest = ["dep:digest"]
 

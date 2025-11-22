@@ -47,6 +47,7 @@ where
 }
 
 /// Trait for parses an Obsidian note from a file
+#[cfg(not(target_family = "wasm"))]
 pub trait NoteFromFile: Note
 where
     Self::Properties: DeserializeOwned,

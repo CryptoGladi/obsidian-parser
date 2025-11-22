@@ -7,7 +7,7 @@
 //! [`NoteOnceLock`]: crate::note::note_once_lock::NoteOnceLock
 
 use crate::note::parser::{self, ResultParse, parse_note};
-use crate::note::{DefaultProperties, Note, NoteFromFile};
+use crate::note::{DefaultProperties, Note};
 use serde::de::DeserializeOwned;
 use std::borrow::Cow;
 use std::cell::OnceCell;
@@ -197,7 +197,8 @@ where
     }
 }
 
-impl<T> NoteFromFile for NoteOnceCell<T>
+#[cfg(not(target_family = "wasm"))]
+impl<T> crate::prelude::NoteFromFile for NoteOnceCell<T>
 where
     T: DeserializeOwned + Clone,
 {

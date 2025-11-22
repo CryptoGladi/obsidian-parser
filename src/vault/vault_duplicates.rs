@@ -229,8 +229,7 @@ mod tests {
             .include_hidden(true)
             .into_iter()
             .map(Result::unwrap)
-            .build_vault(&options)
-            .unwrap();
+            .build_vault(&options);
 
         (vault, temp_dir)
     }
@@ -250,8 +249,7 @@ mod tests {
             .include_hidden(true)
             .into_iter()
             .map(Result::unwrap)
-            .build_vault(&options)
-            .unwrap();
+            .build_vault(&options);
 
         (vault, temp_dir)
     }

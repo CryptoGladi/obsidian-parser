@@ -38,7 +38,7 @@ fn main() {
             }
         });
 
-    let vault: VaultOnceLock = files.build_vault(&options).unwrap();
+    let vault: VaultOnceLock = files.build_vault(&options);
     println!("Time open vault: {:.2?}", open_vault.elapsed());
     println!("Count notes: {}", vault.count_notes());
 

@@ -1,7 +1,7 @@
 //! On-disk representation of an Obsidian note file
 
 use crate::note::parser::{self, ResultParse, parse_note};
-use crate::note::{DefaultProperties, Note, NoteFromFile};
+use crate::note::{DefaultProperties, Note};
 use serde::de::DeserializeOwned;
 use std::borrow::Cow;
 use std::marker::PhantomData;
@@ -196,7 +196,8 @@ where
     }
 }
 
-impl<T> NoteFromFile for NoteOnDisk<T>
+#[cfg(not(target_family = "wasm"))]
+impl<T> crate::prelude::NoteFromFile for NoteOnDisk<T>
 where
     T: DeserializeOwned + Clone,
 {

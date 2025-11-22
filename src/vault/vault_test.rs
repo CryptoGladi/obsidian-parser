@@ -7,6 +7,9 @@ use crate::{
 use std::{fs::File, io::Write};
 use tempfile::TempDir;
 
+/// Create files for test [`Vault`]
+///
+/// Please, see [`create_test_vault`]
 pub(crate) fn create_files_for_vault() -> Result<(TempDir, Vec<File>), std::io::Error> {
     let temp_dir = TempDir::new()?;
 
@@ -32,6 +35,7 @@ pub(crate) fn create_files_for_vault() -> Result<(TempDir, Vec<File>), std::io::
     Ok((temp_dir, vec![main, main2, link]))
 }
 
+/// Create test [`Vault`]
 pub(crate) fn create_test_vault() -> Result<(Vault, TempDir, Vec<File>), std::io::Error> {
     let (path, files) = create_files_for_vault()?;
 
@@ -39,8 +43,7 @@ pub(crate) fn create_test_vault() -> Result<(Vault, TempDir, Vec<File>), std::io
     let vault = VaultBuilder::new(&options)
         .into_iter()
         .map(|file| file.unwrap())
-        .build_vault(&options)
-        .unwrap();
+        .build_vault(&options);
 
     Ok((vault, path, files))
 }

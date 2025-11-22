@@ -1,6 +1,6 @@
 //! In-memory representation of an Obsidian note file
 
-use super::{DefaultProperties, Note, NoteFromFile, NoteFromReader, NoteFromString};
+use super::{DefaultProperties, Note, NoteFromReader, NoteFromString};
 use crate::note::parser::{self, ResultParse, parse_note};
 use serde::de::DeserializeOwned;
 use std::{
@@ -187,7 +187,8 @@ where
     }
 }
 
-impl<T> NoteFromFile for NoteInMemory<T>
+#[cfg(not(target_family = "wasm"))]
+impl<T> crate::prelude::NoteFromFile for NoteInMemory<T>
 where
     T: DeserializeOwned + Clone,
 {
