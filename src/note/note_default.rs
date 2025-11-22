@@ -17,7 +17,7 @@ pub trait NoteDefault: Note {
         Self: NoteFromString,
         Self::Properties: DeserializeOwned;
 
-    /// Same as [`NoteFromFile::from_file`] with default properties type
+    /// Same as [`crate::note::NoteFromFile::from_file`] with default properties type
     #[cfg(not(target_family = "wasm"))]
     fn from_file_default(path: impl AsRef<Path>) -> Result<Self, Self::Error>
     where
