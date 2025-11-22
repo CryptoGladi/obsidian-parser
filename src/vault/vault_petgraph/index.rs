@@ -1,11 +1,10 @@
-use ahash::AHashMap;
 use petgraph::graph::NodeIndex;
 use std::collections::HashMap;
 
 #[derive(Default, Clone, PartialEq, Eq)]
 pub struct Index {
     full: HashMap<String, NodeIndex>,
-    short: AHashMap<String, NodeIndex>,
+    short: HashMap<String, NodeIndex>,
 }
 
 impl Index {

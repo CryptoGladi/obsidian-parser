@@ -105,7 +105,7 @@ where
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::note::{DefaultProperties, NoteReadWrite};
+    use crate::note::{DefaultProperties, NoteFromFile};
     use tempfile::NamedTempFile;
 
     const TEST_DATA: &str = "---\n\
@@ -118,7 +118,7 @@ Two test data";
 
     pub(crate) fn flush_properties<T>() -> Result<(), T::Error>
     where
-        T: NoteReadWrite<Properties = DefaultProperties>,
+        T: NoteFromFile<Properties = DefaultProperties> + NoteWrite,
         T::Error: From<std::io::Error> + From<serde_yml::Error> + From<parser::Error>,
     {
         let mut test_file = NamedTempFile::new().unwrap();
@@ -141,7 +141,7 @@ Two test data";
 
     pub(crate) fn flush_content<T>() -> Result<(), T::Error>
     where
-        T: NoteReadWrite<Properties = DefaultProperties>,
+        T: NoteFromFile<Properties = DefaultProperties> + NoteWrite,
         T::Error: From<std::io::Error> + From<serde_yml::Error> + From<parser::Error>,
     {
         let mut test_file = NamedTempFile::new().unwrap();
@@ -163,7 +163,7 @@ Two test data";
 
     pub(crate) fn flush<T>() -> Result<(), T::Error>
     where
-        T: NoteReadWrite<Properties = DefaultProperties>,
+        T: NoteFromFile<Properties = DefaultProperties> + NoteWrite,
         T::Error: From<std::io::Error> + From<serde_yml::Error> + From<parser::Error>,
     {
         let mut test_file = NamedTempFile::new().unwrap();

@@ -56,18 +56,28 @@ where
 {
     /// Get notes
     #[must_use]
+    #[inline]
     pub const fn notes(&self) -> &Vec<N> {
         &self.notes
     }
 
+    /// Get mutables notes
+    #[must_use]
+    #[inline]
+    pub const fn mut_notes(&mut self) -> &mut Vec<N> {
+        &mut self.notes
+    }
+
     /// Get count in notes from vault
     #[must_use]
+    #[inline]
     pub const fn count_notes(&self) -> usize {
         self.notes().len()
     }
 
     /// Get path to vault
     #[must_use]
+    #[inline]
     pub fn path(&self) -> &Path {
         &self.path
     }
@@ -91,8 +101,7 @@ mod tests {
             .include_hidden(true)
             .into_iter()
             .map(|file| file.unwrap())
-            .build_vault(&options)
-            .unwrap();
+            .build_vault(&options);
 
         assert_eq!(vault.notes().len(), files.len());
     }
@@ -107,8 +116,7 @@ mod tests {
             .include_hidden(true)
             .into_iter()
             .map(|file| file.unwrap())
-            .build_vault(&options)
-            .unwrap();
+            .build_vault(&options);
 
         assert_eq!(vault.count_notes(), files.len());
     }
@@ -123,8 +131,7 @@ mod tests {
             .include_hidden(true)
             .into_iter()
             .map(|file| file.unwrap())
-            .build_vault(&options)
-            .unwrap();
+            .build_vault(&options);
 
         assert_eq!(vault.path(), path.path());
     }

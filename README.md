@@ -11,11 +11,12 @@ Blazingly fast Rust library for parsing and analyzing [Obsidian](https://obsidia
 - 🧩 **Flexible API**: Supports both in-memory and on-disk note representations
 - 🔍 **Frontmatter Parsing**: Extract YAML properties with [`serde`](https://docs.rs/serde/latest/serde) compatibility
 - 🌐 **Link Analysis**: Identify connections between notes
+- 👾 **WebAssembly Support**: Add `obsidian-parser` to your Obsidian plugins
 ## Quick Start
 Add to `Cargo.toml`:
 ```toml
 [dependencies]
-obsidian-parser = "0.7"
+obsidian-parser = "0.8"
 ```
 ### Basic Usage
 * Basic Parsing

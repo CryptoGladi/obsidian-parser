@@ -7,11 +7,10 @@
 //! [`NoteOnceLock`]: crate::note::note_once_lock::NoteOnceLock
 
 use crate::note::parser::{self, ResultParse, parse_note};
-use crate::note::{DefaultProperties, Note, NoteRead};
+use crate::note::{DefaultProperties, Note};
 use serde::de::DeserializeOwned;
 use std::borrow::Cow;
 use std::cell::OnceCell;
-use std::io::Read;
 use std::path::Path;
 use std::path::PathBuf;
 use thiserror::Error;
@@ -187,23 +186,23 @@ where
     }
 }
 
-impl<T> NoteRead for NoteOnceCell<T>
+impl<T> NoteOnceCell<T>
 where
     T: DeserializeOwned + Clone,
 {
-    /// Creates instance from [`std::io::Read`]
-    ///
-    /// # Warning
-    /// Only put path to struct!
+    /// Set path to note
     #[inline]
-    fn from_reader(_reader: &mut impl Read, path: Option<impl AsRef<Path>>) -> Result<Self, Error> {
-        Self::from_string("", path)
+    pub fn set_path(&mut self, path: PathBuf) {
+        self.path = path;
     }
+}
 
-    /// Creates instance from path
-    ///
-    /// # Warning
-    /// Only put path to struct!
+#[cfg(not(target_family = "wasm"))]
+impl<T> crate::prelude::NoteFromFile for NoteOnceCell<T>
+where
+    T: DeserializeOwned + Clone,
+{
+    /// Creates instance from file
     fn from_file(path: impl AsRef<Path>) -> Result<Self, Error> {
         let path = path.as_ref().to_path_buf();
 
@@ -217,20 +216,6 @@ where
             properties: OnceCell::default(),
         })
     }
-
-    /// Creates instance from text (requires path!)
-    ///
-    /// # Warning
-    /// Dont use this function. Use `from_file`
-    #[inline]
-    fn from_string(
-        _raw_text: impl AsRef<str>,
-        path: Option<impl AsRef<Path>>,
-    ) -> Result<Self, Error> {
-        let path_buf = path.expect("Path is required").as_ref().to_path_buf();
-
-        Self::from_file(path_buf)
-    }
 }
 
 #[cfg(test)]
@@ -240,7 +225,6 @@ mod tests {
     use crate::note::impl_tests::impl_test_for_note;
     use crate::note::note_read::tests::{from_file, from_file_with_unicode};
     use crate::note::note_write::tests::impl_all_tests_flush;
-    use std::fs::File;
     use std::io::Write;
     use tempfile::NamedTempFile;
 
@@ -252,13 +236,6 @@ mod tests {
         from_file_with_unicode,
         NoteOnceCell
     );
-
-    #[cfg_attr(feature = "logging", test_log::test)]
-    #[cfg_attr(not(feature = "logging"), test)]
-    #[should_panic]
-    fn use_from_string_without_path() {
-        NoteOnceCell::from_string_default("", None::<&str>).unwrap();
-    }
 
     #[cfg_attr(feature = "logging", test_log::test)]
     #[cfg_attr(not(feature = "logging"), test)]
@@ -302,39 +279,5 @@ mod tests {
 
         assert_eq!(file.content().unwrap(), "DATA");
         assert_eq!(properties["time"], "now");
-    }
-
-    #[cfg_attr(feature = "logging", test_log::test)]
-    #[cfg_attr(not(feature = "logging"), test)]
-    fn from_read() {
-        let test_data = "---\ntime: now\n---\nDATA";
-        let mut test_file = NamedTempFile::new().unwrap();
-        test_file.write_all(test_data.as_bytes()).unwrap();
-
-        let file = NoteOnceCell::from_read_default(
-            &mut File::open(test_file.path()).unwrap(),
-            Some(test_file.path()),
-        )
-        .unwrap();
-
-        let properties = file.properties().unwrap().unwrap();
-
-        assert_eq!(file.content().unwrap(), "DATA");
-        assert_eq!(properties["time"], "now");
-    }
-
-    #[cfg_attr(feature = "logging", test_log::test)]
-    #[cfg_attr(not(feature = "logging"), test)]
-    #[should_panic]
-    fn from_read_but_without_path() {
-        let test_data = "---\ntime: now\n---\nDATA";
-        let mut test_file = NamedTempFile::new().unwrap();
-        test_file.write_all(test_data.as_bytes()).unwrap();
-
-        let _file = NoteOnceCell::from_read_default(
-            &mut File::open(test_file.path()).unwrap(),
-            None::<&str>,
-        )
-        .unwrap();
     }
 }

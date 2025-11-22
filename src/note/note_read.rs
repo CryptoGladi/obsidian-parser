@@ -1,20 +1,38 @@
-//! Impl trait [`NoteRead`]
+//! Impl traits for reading notes
 
 use super::Note;
 use serde::de::DeserializeOwned;
-use std::{fs::File, io::Read, path::Path};
+use std::{io::Read, path::Path};
 
-/// [`Note`] support read operation
-pub trait NoteRead: Note
+/// Trait for parses an Obsidian note from a string
+pub trait NoteFromString: Note
+where
+    Self::Properties: DeserializeOwned,
+{
+    /// Parses an Obsidian note from a string
+    ///
+    /// # Arguments
+    /// - `raw_text`: Raw markdown content with optional YAML frontmatter
+    fn from_string(raw_text: impl AsRef<str>) -> Result<Self, Self::Error>;
+}
+
+/// Trait for parses an Obsidian note from a reader
+pub trait NoteFromReader: Note
 where
     Self::Properties: DeserializeOwned,
     Self::Error: From<std::io::Error>,
 {
     /// Parses an Obsidian note from a reader
-    fn from_reader(
-        read: &mut impl Read,
-        path: Option<impl AsRef<Path>>,
-    ) -> Result<Self, Self::Error> {
+    fn from_reader(read: &mut impl Read) -> Result<Self, Self::Error>;
+}
+
+impl<N> NoteFromReader for N
+where
+    N: NoteFromString,
+    N::Properties: DeserializeOwned,
+    N::Error: From<std::io::Error>,
+{
+    fn from_reader(read: &mut impl Read) -> Result<Self, Self::Error> {
         #[cfg(feature = "logging")]
         log::trace!("Parse obsidian file from reader");
 
@@ -24,32 +42,22 @@ where
         // SAFETY: Notes files in Obsidian (`*.md`) ensure that the file is encoded in UTF-8
         let text = unsafe { String::from_utf8_unchecked(data) };
 
-        Self::from_string(&text, path)
+        Self::from_string(&text)
     }
+}
 
+/// Trait for parses an Obsidian note from a file
+#[cfg(not(target_family = "wasm"))]
+pub trait NoteFromFile: Note
+where
+    Self::Properties: DeserializeOwned,
+    Self::Error: From<std::io::Error>,
+{
     /// Parses an Obsidian note from a file
     ///
     /// # Arguments
     /// - `path`: Filesystem path to markdown file
-    fn from_file(path: impl AsRef<Path>) -> Result<Self, Self::Error> {
-        let path_buf = path.as_ref().to_path_buf();
-
-        #[cfg(feature = "logging")]
-        log::trace!("Parse obsidian file from file: {}", path_buf.display());
-
-        let mut file = File::open(&path_buf)?;
-        Self::from_reader(&mut file, Some(path_buf))
-    }
-
-    /// Parses an Obsidian note from a string
-    ///
-    /// # Arguments
-    /// - `raw_text`: Raw markdown content with optional YAML frontmatter
-    /// - `path`: Optional source path for reference
-    fn from_string(
-        raw_text: impl AsRef<str>,
-        path: Option<impl AsRef<Path>>,
-    ) -> Result<Self, Self::Error>;
+    fn from_file(path: impl AsRef<Path>) -> Result<Self, Self::Error>;
 }
 
 #[cfg(test)]
@@ -59,7 +67,11 @@ pub(crate) mod tests {
         note::{DefaultProperties, parser},
         test_utils::is_error,
     };
-    use std::io::{Cursor, Write};
+    use std::{
+        borrow::Cow,
+        io::{Cursor, Write},
+        path::PathBuf,
+    };
     use tempfile::NamedTempFile;
 
     const TEST_DATA: &str = "---\n\
@@ -80,34 +92,25 @@ Two test data";
 
     const SPACE_DATA: &str = "  ---\ntest: test-data\n---\n";
 
-    fn test_data<T>(file: T) -> Result<(), T::Error>
+    fn test_data<T>(note: T, path: Option<PathBuf>) -> Result<(), T::Error>
     where
-        T: NoteRead<Properties = DefaultProperties>,
+        T: Note<Properties = DefaultProperties>,
         T::Error: From<std::io::Error>,
     {
-        let properties = file.properties().unwrap().unwrap();
+        let path = path.map(|p| Cow::Owned(p));
+        let properties = note.properties()?.unwrap();
 
         assert_eq!(properties["topic"], "life");
         assert_eq!(properties["created"], "2025-03-16");
-        assert_eq!(file.content().unwrap(), "Test data\n---\nTwo test data");
-
-        Ok(())
-    }
-
-    fn note_name<T>(file1: T, file2: T) -> Result<(), T::Error>
-    where
-        T: NoteRead<Properties = DefaultProperties>,
-        T::Error: From<std::io::Error>,
-    {
-        assert_eq!(file1.note_name(), None);
-        assert_eq!(file2.note_name(), Some("Super note".to_string()));
+        assert_eq!(note.content()?, "Test data\n---\nTwo test data");
+        assert_eq!(note.path(), path);
 
         Ok(())
     }
 
     fn without_properties<T>(file: T, text: &str) -> Result<(), T::Error>
     where
-        T: NoteRead<Properties = DefaultProperties>,
+        T: Note<Properties = DefaultProperties>,
         T::Error: From<std::io::Error>,
     {
         assert_eq!(file.properties().unwrap(), None);
@@ -118,7 +121,7 @@ Two test data";
 
     fn invalid_yaml<T>(result: Result<T, T::Error>) -> Result<(), T::Error>
     where
-        T: NoteRead<Properties = DefaultProperties>,
+        T: Note<Properties = DefaultProperties>,
         T::Error: From<std::io::Error>,
     {
         let error = result.err().unwrap();
@@ -129,7 +132,7 @@ Two test data";
 
     fn invalid_format<T>(result: Result<T, T::Error>) -> Result<(), T::Error>
     where
-        T: NoteRead<Properties = DefaultProperties>,
+        T: Note<Properties = DefaultProperties>,
         T::Error: From<std::io::Error>,
     {
         let error = result.err().unwrap();
@@ -140,10 +143,9 @@ Two test data";
 
     fn with_unicode<T>(file: T) -> Result<(), T::Error>
     where
-        T: NoteRead<Properties = DefaultProperties>,
-        T::Error: From<std::io::Error>,
+        T: Note<Properties = DefaultProperties>,
     {
-        let properties = file.properties().unwrap().unwrap();
+        let properties = file.properties()?.unwrap();
 
         assert_eq!(properties["data"], "💩");
         assert_eq!(file.content().unwrap(), "Super data 💩💩💩");
@@ -153,10 +155,9 @@ Two test data";
 
     fn space_with_properties<T>(file: T, content: &str) -> Result<(), T::Error>
     where
-        T: NoteRead<Properties = DefaultProperties>,
-        T::Error: From<std::io::Error>,
+        T: Note<Properties = DefaultProperties>,
     {
-        let properties = file.properties().unwrap();
+        let properties = file.properties()?;
 
         assert_eq!(file.content().unwrap(), content);
         assert_eq!(properties, None);
@@ -166,35 +167,23 @@ Two test data";
 
     pub(crate) fn from_reader<T>() -> Result<(), T::Error>
     where
-        T: NoteRead<Properties = DefaultProperties>,
+        T: NoteFromReader<Properties = DefaultProperties>,
         T::Error: From<std::io::Error>,
     {
         let mut reader = Cursor::new(TEST_DATA);
-        let file = T::from_reader(&mut reader, None::<&str>)?;
+        let file = T::from_reader(&mut reader)?;
 
-        test_data(file)?;
-        Ok(())
-    }
-
-    pub(crate) fn from_reader_note_name<T>() -> Result<(), T::Error>
-    where
-        T: NoteRead<Properties = DefaultProperties>,
-        T::Error: From<std::io::Error>,
-    {
-        let file1 = T::from_reader(&mut Cursor::new(TEST_DATA), None::<&str>)?;
-        let file2 = T::from_reader(&mut Cursor::new(TEST_DATA), Some("Super note.md"))?;
-
-        note_name(file1, file2)?;
+        test_data(file, None)?;
         Ok(())
     }
 
     pub(crate) fn from_reader_without_properties<T>() -> Result<(), T::Error>
     where
-        T: NoteRead<Properties = DefaultProperties>,
+        T: NoteFromReader<Properties = DefaultProperties>,
         T::Error: From<std::io::Error>,
     {
         let test_data = "TEST_DATA";
-        let file = T::from_reader(&mut Cursor::new(test_data), None::<&str>)?;
+        let file = T::from_reader(&mut Cursor::new(test_data))?;
 
         without_properties(file, test_data)?;
         Ok(())
@@ -202,10 +191,10 @@ Two test data";
 
     pub(crate) fn from_reader_invalid_yaml<T>() -> Result<(), T::Error>
     where
-        T: NoteRead<Properties = DefaultProperties>,
+        T: NoteFromReader<Properties = DefaultProperties>,
         T::Error: From<std::io::Error>,
     {
-        let result = T::from_reader(&mut Cursor::new(BROKEN_DATA), None::<&str>);
+        let result = T::from_reader(&mut Cursor::new(BROKEN_DATA));
 
         invalid_yaml(result)?;
         Ok(())
@@ -213,11 +202,11 @@ Two test data";
 
     pub(crate) fn from_reader_invalid_format<T>() -> Result<(), T::Error>
     where
-        T: NoteRead<Properties = DefaultProperties>,
+        T: NoteFromReader<Properties = DefaultProperties>,
         T::Error: From<std::io::Error>,
     {
         let broken_data = "---\n";
-        let result = T::from_reader(&mut Cursor::new(broken_data), None::<&str>);
+        let result = T::from_reader(&mut Cursor::new(broken_data));
 
         invalid_format(result)?;
         Ok(())
@@ -225,10 +214,10 @@ Two test data";
 
     pub(crate) fn from_reader_with_unicode<T>() -> Result<(), T::Error>
     where
-        T: NoteRead<Properties = DefaultProperties>,
+        T: NoteFromReader<Properties = DefaultProperties>,
         T::Error: From<std::io::Error>,
     {
-        let file = T::from_reader(&mut Cursor::new(UNICODE_DATA), None::<&str>)?;
+        let file = T::from_reader(&mut Cursor::new(UNICODE_DATA))?;
 
         with_unicode(file)?;
         Ok(())
@@ -236,10 +225,10 @@ Two test data";
 
     pub(crate) fn from_reader_space_with_properties<T>() -> Result<(), T::Error>
     where
-        T: NoteRead<Properties = DefaultProperties>,
+        T: NoteFromReader<Properties = DefaultProperties>,
         T::Error: From<std::io::Error>,
     {
-        let file = T::from_reader(&mut Cursor::new(SPACE_DATA), None::<&str>)?;
+        let file = T::from_reader(&mut Cursor::new(SPACE_DATA))?;
 
         space_with_properties(file, SPACE_DATA)?;
         Ok(())
@@ -247,34 +236,22 @@ Two test data";
 
     pub(crate) fn from_string<T>() -> Result<(), T::Error>
     where
-        T: NoteRead<Properties = DefaultProperties>,
+        T: NoteFromString<Properties = DefaultProperties>,
         T::Error: From<std::io::Error>,
     {
-        let file = T::from_string(TEST_DATA, None::<&str>)?;
+        let file = T::from_string(TEST_DATA)?;
 
-        test_data(file)?;
-        Ok(())
-    }
-
-    pub(crate) fn from_string_note_name<T>() -> Result<(), T::Error>
-    where
-        T: NoteRead<Properties = DefaultProperties>,
-        T::Error: From<std::io::Error>,
-    {
-        let file1 = T::from_string(TEST_DATA, None::<&str>)?;
-        let file2 = T::from_string(TEST_DATA, Some("Super note.md"))?;
-
-        note_name(file1, file2)?;
+        test_data(file, None)?;
         Ok(())
     }
 
     pub(crate) fn from_string_without_properties<T>() -> Result<(), T::Error>
     where
-        T: NoteRead<Properties = DefaultProperties>,
+        T: NoteFromString<Properties = DefaultProperties>,
         T::Error: From<std::io::Error>,
     {
         let test_data = "TEST_DATA";
-        let file = T::from_string(test_data, None::<&str>)?;
+        let file = T::from_string(test_data)?;
 
         without_properties(file, test_data)?;
         Ok(())
@@ -282,10 +259,10 @@ Two test data";
 
     pub(crate) fn from_string_with_invalid_yaml<T>() -> Result<(), T::Error>
     where
-        T: NoteRead<Properties = DefaultProperties>,
+        T: NoteFromString<Properties = DefaultProperties>,
         T::Error: From<std::io::Error> + From<serde_yml::Error> + 'static,
     {
-        let result = T::from_string(BROKEN_DATA, None::<&str>);
+        let result = T::from_string(BROKEN_DATA);
 
         invalid_yaml(result)?;
         Ok(())
@@ -293,12 +270,12 @@ Two test data";
 
     pub(crate) fn from_string_invalid_format<T>() -> Result<(), T::Error>
     where
-        T: NoteRead<Properties = DefaultProperties>,
+        T: NoteFromString<Properties = DefaultProperties>,
         T::Error: From<std::io::Error> + From<parser::Error>,
     {
         let broken_data = "---\n";
 
-        let result = T::from_string(broken_data, None::<&str>);
+        let result = T::from_string(broken_data);
         invalid_format(result)?;
 
         Ok(())
@@ -306,10 +283,9 @@ Two test data";
 
     pub(crate) fn from_string_with_unicode<T>() -> Result<(), T::Error>
     where
-        T: NoteRead<Properties = DefaultProperties>,
-        T::Error: From<std::io::Error>,
+        T: NoteFromString<Properties = DefaultProperties>,
     {
-        let file = T::from_string(UNICODE_DATA, None::<&str>)?;
+        let file = T::from_string(UNICODE_DATA)?;
 
         with_unicode(file)?;
         Ok(())
@@ -317,10 +293,9 @@ Two test data";
 
     pub(crate) fn from_string_space_with_properties<T>() -> Result<(), T::Error>
     where
-        T: NoteRead<Properties = DefaultProperties>,
-        T::Error: From<std::io::Error>,
+        T: NoteFromString<Properties = DefaultProperties>,
     {
-        let file = T::from_string(SPACE_DATA, None::<&str>)?;
+        let file = T::from_string(SPACE_DATA)?;
 
         space_with_properties(file, SPACE_DATA)?;
         Ok(())
@@ -328,7 +303,7 @@ Two test data";
 
     pub(crate) fn from_file<T>() -> Result<(), T::Error>
     where
-        T: NoteRead<Properties = DefaultProperties>,
+        T: NoteFromFile<Properties = DefaultProperties>,
         T::Error: From<std::io::Error>,
     {
         let mut temp_file = NamedTempFile::new().unwrap();
@@ -336,13 +311,13 @@ Two test data";
 
         let file = T::from_file(temp_file.path()).unwrap();
 
-        test_data(file)?;
+        test_data(file, Some(temp_file.path().to_path_buf()))?;
         Ok(())
     }
 
     pub(crate) fn from_file_note_name<T>() -> Result<(), T::Error>
     where
-        T: NoteRead<Properties = DefaultProperties>,
+        T: NoteFromFile<Properties = DefaultProperties>,
         T::Error: From<std::io::Error>,
     {
         let mut temp_file = NamedTempFile::new().unwrap();
@@ -355,7 +330,7 @@ Two test data";
             .to_string_lossy()
             .to_string();
 
-        let file = T::from_file(temp_file.path()).unwrap();
+        let file = T::from_file(temp_file.path())?;
 
         assert_eq!(file.note_name(), Some(name_temp_file));
         Ok(())
@@ -363,7 +338,7 @@ Two test data";
 
     pub(crate) fn from_file_without_properties<T>() -> Result<(), T::Error>
     where
-        T: NoteRead<Properties = DefaultProperties>,
+        T: NoteFromFile<Properties = DefaultProperties>,
         T::Error: From<std::io::Error>,
     {
         let test_data = "TEST_DATA";
@@ -378,7 +353,7 @@ Two test data";
 
     pub(crate) fn from_file_with_invalid_yaml<T>() -> Result<(), T::Error>
     where
-        T: NoteRead<Properties = DefaultProperties>,
+        T: NoteFromFile<Properties = DefaultProperties>,
         T::Error: From<std::io::Error> + From<serde_yml::Error>,
     {
         let mut test_file = NamedTempFile::new().unwrap();
@@ -392,7 +367,7 @@ Two test data";
 
     pub(crate) fn from_file_invalid_format<T>() -> Result<(), T::Error>
     where
-        T: NoteRead<Properties = DefaultProperties>,
+        T: NoteFromFile<Properties = DefaultProperties>,
         T::Error: From<std::io::Error> + From<parser::Error>,
     {
         let broken_data = "---\n";
@@ -407,7 +382,7 @@ Two test data";
 
     pub(crate) fn from_file_with_unicode<T>() -> Result<(), T::Error>
     where
-        T: NoteRead<Properties = DefaultProperties>,
+        T: NoteFromFile<Properties = DefaultProperties>,
         T::Error: From<std::io::Error>,
     {
         let mut test_file = NamedTempFile::new().unwrap();
@@ -421,7 +396,7 @@ Two test data";
 
     pub(crate) fn from_file_space_with_properties<T>() -> Result<(), T::Error>
     where
-        T: NoteRead<Properties = DefaultProperties>,
+        T: NoteFromFile<Properties = DefaultProperties>,
         T::Error: From<std::io::Error>,
     {
         let data = "  ---\ntest: test-data\n---\n";
@@ -441,11 +416,6 @@ Two test data";
 
             impl_test_for_note!(impl_from_reader, from_reader, $impl_note);
 
-            impl_test_for_note!(
-                impl_from_reader_note_name,
-                from_reader_note_name,
-                $impl_note
-            );
             impl_test_for_note!(
                 impl_from_reader_without_properties,
                 from_reader_without_properties,
@@ -481,11 +451,6 @@ Two test data";
 
             impl_test_for_note!(impl_from_string, from_string, $impl_note);
 
-            impl_test_for_note!(
-                impl_from_string_note_name,
-                from_string_note_name,
-                $impl_note
-            );
             impl_test_for_note!(
                 impl_from_string_without_properties,
                 from_string_without_properties,

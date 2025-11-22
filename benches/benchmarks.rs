@@ -38,7 +38,7 @@ fn prepare_test_file(
     }
 }
 
-fn create_vault<V: NoteRead<Properties = NoteProperties>>(path: &Path) -> Vault<V>
+fn create_vault<V: NoteFromFile<Properties = NoteProperties>>(path: &Path) -> Vault<V>
 where
     V::Error: From<std::io::Error>,
 {
@@ -47,8 +47,7 @@ where
         .include_hidden(true)
         .into_iter()
         .map(|note| note.unwrap())
-        .build_vault(&options)
-        .unwrap();
+        .build_vault(&options);
 
     vault
 }
@@ -84,8 +83,7 @@ fn vault_open_benchmark(c: &mut Criterion) {
                 .include_hidden(true)
                 .into_iter()
                 .map(|note| note.unwrap())
-                .build_vault(&options)
-                .unwrap();
+                .build_vault(&options);
 
             black_box(vault);
         })
@@ -98,8 +96,7 @@ fn vault_open_benchmark(c: &mut Criterion) {
                 .include_hidden(true)
                 .into_iter()
                 .map(|note| note.unwrap())
-                .build_vault(&options)
-                .unwrap();
+                .build_vault(&options);
 
             black_box(vault);
         })
@@ -112,8 +109,7 @@ fn vault_open_benchmark(c: &mut Criterion) {
                 .include_hidden(true)
                 .into_iter()
                 .map(|note| note.unwrap())
-                .build_vault(&options)
-                .unwrap();
+                .build_vault(&options);
 
             black_box(vault);
         })
@@ -126,8 +122,7 @@ fn vault_open_benchmark(c: &mut Criterion) {
                 .include_hidden(true)
                 .into_iter()
                 .map(|note| note.unwrap())
-                .build_vault(&options)
-                .unwrap();
+                .build_vault(&options);
 
             black_box(vault);
         })
@@ -144,8 +139,7 @@ fn vault_open_benchmark(c: &mut Criterion) {
                     .include_hidden(true)
                     .into_par_iter()
                     .map(|note| note.unwrap())
-                    .build_vault(&options)
-                    .unwrap();
+                    .build_vault(&options);
 
                 black_box(vault);
             })
@@ -158,8 +152,7 @@ fn vault_open_benchmark(c: &mut Criterion) {
                     .include_hidden(true)
                     .into_par_iter()
                     .map(|note| note.unwrap())
-                    .build_vault(&options)
-                    .unwrap();
+                    .build_vault(&options);
 
                 black_box(vault);
             })
@@ -172,8 +165,7 @@ fn vault_open_benchmark(c: &mut Criterion) {
                     .include_hidden(true)
                     .into_par_iter()
                     .map(|note| note.unwrap())
-                    .build_vault(&options)
-                    .unwrap();
+                    .build_vault(&options);
 
                 black_box(vault);
             })
@@ -186,8 +178,7 @@ fn vault_open_benchmark(c: &mut Criterion) {
                     .include_hidden(true)
                     .into_par_iter()
                     .map(|note| note.unwrap())
-                    .build_vault(&options)
-                    .unwrap();
+                    .build_vault(&options);
 
                 black_box(vault);
             })
