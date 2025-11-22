@@ -142,16 +142,16 @@ where
     ///     title: String
     /// }
     ///
-    /// let note = r#"---
+    /// let text = r#"---
     /// title: Example
     /// ---
     /// Content"#;
     ///
-    /// let file: NoteInMemory<NoteProperties> = NoteInMemory::from_string(note, None::<&str>).unwrap();
-    /// let properties = file.properties().unwrap().unwrap();
+    /// let note: NoteInMemory<NoteProperties> = NoteInMemory::from_string(text).unwrap();
+    /// let properties = note.properties().unwrap().unwrap();
     ///
     /// assert_eq!(properties.title, "Example");
-    /// assert_eq!(file.content().unwrap(), "Content");
+    /// assert_eq!(note.content().unwrap(), "Content");
     /// ```
     fn from_string(raw_text: impl AsRef<str>) -> Result<Self, Self::Error> {
         let raw_text = raw_text.as_ref();

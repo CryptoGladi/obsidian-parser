@@ -38,7 +38,7 @@ fn prepare_test_file(
     }
 }
 
-fn create_vault<V: NoteRead<Properties = NoteProperties>>(path: &Path) -> Vault<V>
+fn create_vault<V: NoteFromFile<Properties = NoteProperties>>(path: &Path) -> Vault<V>
 where
     V::Error: From<std::io::Error>,
 {

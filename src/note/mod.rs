@@ -3,8 +3,8 @@
 pub mod note_default;
 pub mod note_in_memory;
 pub mod note_on_disk;
-//pub mod note_once_cell;
-//pub mod note_once_lock;
+pub mod note_once_cell;
+pub mod note_once_lock;
 pub mod note_read;
 pub mod note_write;
 pub mod parser;
@@ -33,7 +33,7 @@ pub(crate) type DefaultProperties = HashMap<String, serde_yml::Value>;
 ///     created: String,
 /// }
 ///
-/// let note: NoteInMemory<NoteProperties> = NoteRead::from_file("note.md").unwrap();
+/// let note: NoteInMemory<NoteProperties> = NoteFromFile::from_file("note.md").unwrap();
 /// let properties = note.properties().unwrap().unwrap();
 /// println!("Note topic: {}", properties.topic);
 /// ```

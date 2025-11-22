@@ -4,7 +4,6 @@ use crate::note::parser::{self, ResultParse, parse_note};
 use crate::note::{DefaultProperties, Note, NoteFromFile};
 use serde::de::DeserializeOwned;
 use std::borrow::Cow;
-use std::io::Read;
 use std::marker::PhantomData;
 use std::path::Path;
 use std::path::PathBuf;
@@ -186,6 +185,17 @@ where
     }
 }
 
+impl<T> NoteOnDisk<T>
+where
+    T: DeserializeOwned + Clone,
+{
+    /// Set path to note
+    #[inline]
+    pub fn set_path(&mut self, path: PathBuf) {
+        self.path = path;
+    }
+}
+
 impl<T> NoteFromFile for NoteOnDisk<T>
 where
     T: DeserializeOwned + Clone,
@@ -212,7 +222,6 @@ mod tests {
     use crate::note::impl_tests::impl_test_for_note;
     use crate::note::note_read::tests::{from_file, from_file_with_unicode};
     use crate::note::note_write::tests::impl_all_tests_flush;
-    use std::fs::File;
     use std::io::Write;
     use tempfile::NamedTempFile;
 

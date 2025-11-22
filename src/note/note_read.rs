@@ -2,7 +2,7 @@
 
 use super::Note;
 use serde::de::DeserializeOwned;
-use std::{fs::File, io::Read, path::Path};
+use std::{io::Read, path::Path};
 
 /// Trait for parses an Obsidian note from a string
 pub trait NoteFromString: Note
