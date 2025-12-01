@@ -17,7 +17,7 @@
 //! Add to `Cargo.toml`:
 //! ```toml
 //! [dependencies]
-//! obsidian-parser = { version = "0.8", features = ["petgraph", "rayon", "digest"] }
+//! obsidian-parser = { version = "0.9", features = ["petgraph", "rayon", "digest"] }
 //! ```
 //!
 //! ## Examples

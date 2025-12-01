@@ -1,6 +1,6 @@
 [package]
 name = "obsidian-parser"
-version = "0.8.0"
+version = "0.9.0"
 edition = "2024"
 description = "Blazingly fast Obsidian vault parser with graph analysis"
 repository = "https://github.com/CryptoGladi/obsidian-parser"
@@ -22,7 +22,7 @@ tracing = { version = "0.1", optional = true }
 
 [dev-dependencies]
 clap = { version = "4.5", features = ["derive"] }
-criterion = { version = "0.7", features = ["html_reports"] }
+criterion = { version = "0.8", features = ["html_reports"] }
 rand = "0.9"
 tempfile = "3.20"
 sha2 = "0.10"
@@ -43,7 +43,7 @@ rustc-args = ["--cfg", "docsrs"]
 
 [[example]]
 name = "analyzer"
-required-features = ["petgraph", "rayon"]
+required-features = ["petgraph", "rayon", "digest"]
 
 [[bench]]
 name = "benchmarks"

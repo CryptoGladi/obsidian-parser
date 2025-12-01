@@ -291,36 +291,6 @@ fn get_duplicates_by_name_benchmark(c: &mut Criterion) {
             black_box(duplicated);
         })
     });
-
-    #[cfg(feature = "rayon")]
-    {
-        c.bench_function(
-            "Parallel get_duplicates_notes_by_name (VaultInMemory)",
-            |b| {
-                b.iter(|| {
-                    let duplicated = vault_in_memory.par_get_duplicates_notes_by_name();
-                    black_box(duplicated);
-                })
-            },
-        );
-
-        c.bench_function("Parallel get_duplicates_notes_by_name (VaultOnDisk)", |b| {
-            b.iter(|| {
-                let duplicated = vault_on_disk.par_get_duplicates_notes_by_name();
-                black_box(duplicated);
-            })
-        });
-
-        c.bench_function(
-            "Parallel get_duplicates_notes_by_name (VaultOnceLock)",
-            |b| {
-                b.iter(|| {
-                    let duplicated = vault_once_lock.par_get_duplicates_notes_by_name();
-                    black_box(duplicated);
-                })
-            },
-        );
-    }
 }
 
 #[cfg(feature = "digest")]

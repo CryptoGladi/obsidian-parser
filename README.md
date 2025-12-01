@@ -16,7 +16,7 @@ Blazingly fast Rust library for parsing and analyzing [Obsidian](https://obsidia
 Add to `Cargo.toml`:
 ```toml
 [dependencies]
-obsidian-parser = "0.8"
+obsidian-parser = "0.9"
 ```
 ### Basic Usage
 * Basic Parsing
