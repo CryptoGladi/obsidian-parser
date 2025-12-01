@@ -212,6 +212,7 @@ where
 mod tests {
     use super::*;
     use crate::note::{
+        note_is_todo::tests::impl_all_tests_is_todo,
         note_read::tests::{
             impl_all_tests_from_file, impl_all_tests_from_reader, impl_all_tests_from_string,
         },
@@ -222,4 +223,5 @@ mod tests {
     impl_all_tests_from_string!(NoteInMemory);
     impl_all_tests_from_file!(NoteInMemory);
     impl_all_tests_flush!(NoteInMemory);
+    impl_all_tests_is_todo!(NoteInMemory);
 }

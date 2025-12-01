@@ -1,7 +1,9 @@
 //! Represents an Obsidian note file with frontmatter properties and content
 
+pub mod note_aliases;
 pub mod note_default;
 pub mod note_in_memory;
+pub mod note_is_todo;
 pub mod note_on_disk;
 pub mod note_once_cell;
 pub mod note_once_lock;

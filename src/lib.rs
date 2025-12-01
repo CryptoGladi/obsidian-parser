@@ -30,6 +30,8 @@
 //! // Parse single file with `HashMap`
 //! let note_hashmap = NoteInMemory::from_file_default("note.md").unwrap();
 //!
+//! assert!(!note_hashmap.is_todo().unwrap());
+//!
 //! println!("Content: {}", note_hashmap.content().unwrap());
 //! println!("Properties: {:#?}", note_hashmap.properties().unwrap().unwrap());
 //!

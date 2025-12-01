@@ -223,6 +223,7 @@ mod tests {
     use super::*;
     use crate::note::NoteDefault;
     use crate::note::impl_tests::impl_test_for_note;
+    use crate::note::note_is_todo::tests::{from_file_is_not_todo, from_file_is_todo};
     use crate::note::note_read::tests::{from_file, from_file_with_unicode};
     use crate::note::note_write::tests::impl_all_tests_flush;
     use std::io::Write;
@@ -234,6 +235,13 @@ mod tests {
     impl_test_for_note!(
         impl_from_file_with_unicode,
         from_file_with_unicode,
+        NoteOnDisk
+    );
+
+    impl_test_for_note!(impl_from_file_is_todo, from_file_is_todo, NoteOnDisk);
+    impl_test_for_note!(
+        impl_from_file_is_not_todo,
+        from_file_is_not_todo,
         NoteOnDisk
     );
 
