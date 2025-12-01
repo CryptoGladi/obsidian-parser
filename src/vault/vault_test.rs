@@ -26,8 +26,8 @@ pub(crate) fn create_files_for_vault() -> Result<(TempDir, Vec<File>), std::io::
     let mut main2 = File::create(temp_dir.path().join("data").join("main.md"))?;
     main2.write_all(b"New main. [[link]]")?;
 
-    #[cfg(feature = "logging")]
-    log::debug!(
+    #[cfg(feature = "tracing")]
+    tracing::debug!(
         "Created test files for vault in: {}",
         temp_dir.path().display()
     );

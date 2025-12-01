@@ -107,9 +107,10 @@ where
     /// - [`Error::Yaml`] if properties can't be deserialized
     /// - [`Error::IsNotFile`] If file doesn't exist
     /// - [`Error::IO`] on filesystem error
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self), fields(path = %self.path.display())))]
     fn properties(&self) -> Result<Option<Cow<'_, T>>, Error> {
-        #[cfg(feature = "logging")]
-        log::trace!("Get properties from file: `{}`", self.path.display());
+        #[cfg(feature = "tracing")]
+        tracing::trace!("Get properties from file");
 
         let data = std::fs::read(&self.path)?;
 
@@ -121,14 +122,14 @@ where
                 content: _,
                 properties,
             } => {
-                #[cfg(feature = "logging")]
-                log::trace!("Frontmatter detected, parsing properties");
+                #[cfg(feature = "tracing")]
+                tracing::trace!("Frontmatter detected, parsing properties");
 
                 Some(Cow::Owned(serde_yml::from_str(properties)?))
             }
             ResultParse::WithoutProperties => {
-                #[cfg(feature = "logging")]
-                log::trace!("No frontmatter found, storing raw content");
+                #[cfg(feature = "tracing")]
+                tracing::trace!("No frontmatter found, storing raw content");
 
                 None
             }
@@ -148,9 +149,10 @@ where
     /// - Large files where in-memory storage is prohibitive
     ///
     /// For repeated access, consider caching or [`NoteInMemory`](crate::note::note_in_memory::NoteInMemory).
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self), fields(path = %self.path.display())))]
     fn content(&self) -> Result<Cow<'_, str>, Error> {
-        #[cfg(feature = "logging")]
-        log::trace!("Get content from file: `{}`", self.path.display());
+        #[cfg(feature = "tracing")]
+        tracing::trace!("Get content from file");
 
         let data = std::fs::read(&self.path)?;
 
@@ -162,14 +164,14 @@ where
                 content,
                 properties: _,
             } => {
-                #[cfg(feature = "logging")]
-                log::trace!("Frontmatter detected, parsing properties");
+                #[cfg(feature = "tracing")]
+                tracing::trace!("Frontmatter detected, parsing properties");
 
                 content.to_string()
             }
             ResultParse::WithoutProperties => {
-                #[cfg(feature = "logging")]
-                log::trace!("No frontmatter found, storing raw content");
+                #[cfg(feature = "tracing")]
+                tracing::trace!("No frontmatter found, storing raw content");
 
                 raw_text
             }
@@ -235,8 +237,8 @@ mod tests {
         NoteOnDisk
     );
 
-    #[cfg_attr(feature = "logging", test_log::test)]
-    #[cfg_attr(not(feature = "logging"), test)]
+    #[cfg_attr(feature = "tracing", tracing_test::traced_test)]
+    #[test]
     #[should_panic]
     fn use_from_file_with_path_not_file() {
         let temp_dir = tempfile::tempdir().unwrap();
@@ -244,8 +246,8 @@ mod tests {
         NoteOnDisk::from_file_default(temp_dir.path()).unwrap();
     }
 
-    #[cfg_attr(feature = "logging", test_log::test)]
-    #[cfg_attr(not(feature = "logging"), test)]
+    #[cfg_attr(feature = "tracing", tracing_test::traced_test)]
+    #[test]
     fn get_path() {
         let test_file = NamedTempFile::new().unwrap();
         let file = NoteOnDisk::from_file_default(test_file.path()).unwrap();
@@ -254,8 +256,8 @@ mod tests {
         assert_eq!(file.path, test_file.path());
     }
 
-    #[cfg_attr(feature = "logging", test_log::test)]
-    #[cfg_attr(not(feature = "logging"), test)]
+    #[cfg_attr(feature = "tracing", tracing_test::traced_test)]
+    #[test]
     fn get_content() {
         let test_data = "DATA";
         let mut test_file = NamedTempFile::new().unwrap();
@@ -265,8 +267,8 @@ mod tests {
         assert_eq!(file.content().unwrap(), test_data);
     }
 
-    #[cfg_attr(feature = "logging", test_log::test)]
-    #[cfg_attr(not(feature = "logging"), test)]
+    #[cfg_attr(feature = "tracing", tracing_test::traced_test)]
+    #[test]
     fn get_properties() {
         let test_data = "---\ntime: now\n---\nDATA";
         let mut test_file = NamedTempFile::new().unwrap();

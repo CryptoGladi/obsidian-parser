@@ -32,9 +32,10 @@ where
     N::Properties: DeserializeOwned,
     N::Error: From<std::io::Error>,
 {
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip_all))]
     fn from_reader(read: &mut impl Read) -> Result<Self, Self::Error> {
-        #[cfg(feature = "logging")]
-        log::trace!("Parse obsidian file from reader");
+        #[cfg(feature = "tracing")]
+        tracing::trace!("Parse obsidian file from reader");
 
         let mut data = Vec::new();
         read.read_to_end(&mut data)?;

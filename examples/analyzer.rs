@@ -3,6 +3,7 @@ use obsidian_parser::{prelude::*, vault::vault_open::VaultBuilder};
 use petgraph::algo::connected_components;
 use rayon::prelude::*;
 use std::{path::PathBuf, time::Instant};
+use tracing_subscriber::EnvFilter;
 
 fn parse_path(s: &str) -> Result<PathBuf, String> {
     let path = PathBuf::from(s);
@@ -22,7 +23,10 @@ struct Args {
 }
 
 fn main() {
-    env_logger::init();
+    tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_default_env())
+        .init();
+
     let args = Args::parse();
 
     let open_vault = Instant::now();

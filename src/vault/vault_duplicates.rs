@@ -42,13 +42,10 @@ where
     /// # Other
     /// See [`have_unique_note_by_name`](Vault::have_duplicates_notes_by_name)
     #[must_use]
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self), fields(path = %self.path.display(), count_notes = %self.notes.len())))]
     pub fn get_duplicates_notes_by_name(&self) -> Vec<&F> {
-        #[cfg(feature = "logging")]
-        log::debug!(
-            "Get duplicates notes by name in {} ({} notes)",
-            self.path().display(),
-            self.count_notes()
-        );
+        #[cfg(feature = "tracing")]
+        tracing::debug!("Get duplicates notes by name");
 
         let sorted_notes = {
             let mut notes: Vec<_> = self.notes().iter().collect();
@@ -59,8 +56,8 @@ where
 
         let duplicated_notes = get_duplicates(&sorted_notes);
 
-        #[cfg(feature = "logging")]
-        log::debug!("Found {} duplicated notes", duplicated_notes.len());
+        #[cfg(feature = "tracing")]
+        tracing::debug!("Found {} duplicated notes", duplicated_notes.len());
 
         duplicated_notes
     }
@@ -74,18 +71,15 @@ where
     /// See [`par_have_unique_note_by_name`](Vault::par_have_duplicates_notes_by_name)
     #[cfg(feature = "rayon")]
     #[must_use]
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self), fields(path = %self.path.display(), count_notes = %self.notes.len())))]
     pub fn par_get_duplicates_notes_by_name<'a>(&'a self) -> Vec<&'a F>
     where
         &'a F: Send,
     {
         use rayon::prelude::*;
 
-        #[cfg(feature = "logging")]
-        log::debug!(
-            "Par get duplicates notes by name in {} ({} notes)",
-            self.path().display(),
-            self.count_notes()
-        );
+        #[cfg(feature = "tracing")]
+        tracing::debug!("Par get duplicates notes by name");
 
         let sorted_notes = {
             let mut notes: Vec<_> = self.notes().iter().collect();
@@ -96,8 +90,8 @@ where
 
         let duplicated_notes = get_duplicates(&sorted_notes);
 
-        #[cfg(feature = "logging")]
-        log::debug!("Found {} duplicated notes", duplicated_notes.len());
+        #[cfg(feature = "tracing")]
+        tracing::debug!("Found {} duplicated notes", duplicated_notes.len());
 
         duplicated_notes
     }
@@ -139,16 +133,13 @@ where
     /// Get duplicates by content
     #[cfg(feature = "digest")]
     #[cfg_attr(docsrs, doc(cfg(feature = "digest")))]
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self), fields(path = %self.path.display(), count_notes = %self.notes.len())))]
     pub fn get_duplicates_notes_by_content<D>(&self) -> Result<Vec<&F>, F::Error>
     where
         D: digest::Digest,
     {
-        #[cfg(feature = "logging")]
-        log::debug!(
-            "Get duplicates notes by content in {} ({} notes)",
-            self.path().display(),
-            self.count_notes()
-        );
+        #[cfg(feature = "tracing")]
+        tracing::debug!("Get duplicates notes by content");
 
         let mut hashed = Vec::with_capacity(self.count_notes());
         for i in 0..self.count_notes() {
@@ -254,8 +245,8 @@ mod tests {
         (vault, temp_dir)
     }
 
-    #[cfg_attr(feature = "logging", test_log::test)]
-    #[cfg_attr(not(feature = "logging"), test)]
+    #[cfg_attr(feature = "tracing", tracing_test::traced_test)]
+    #[test]
     fn with_duplicates_notes_by_name() {
         let (vault, _path) = create_vault_with_diplicates_files::<NoteInMemory>();
 
@@ -269,8 +260,8 @@ mod tests {
         assert!(vault.have_duplicates_notes_by_name());
     }
 
-    #[cfg_attr(feature = "logging", test_log::test)]
-    #[cfg_attr(not(feature = "logging"), test)]
+    #[cfg_attr(feature = "tracing", tracing_test::traced_test)]
+    #[test]
     fn without_duplicates_notes_by_name() {
         let (vault, _path) = create_vault_without_diplicates_files::<NoteInMemory>();
 
@@ -284,8 +275,8 @@ mod tests {
         assert!(!vault.have_duplicates_notes_by_name());
     }
 
-    #[cfg_attr(feature = "logging", test_log::test)]
-    #[cfg_attr(not(feature = "logging"), test)]
+    #[cfg_attr(feature = "tracing", tracing_test::traced_test)]
+    #[test]
     #[cfg(feature = "rayon")]
     fn par_with_duplicates_notes_by_name() {
         let (vault, _path) = create_vault_with_diplicates_files::<NoteInMemory>();
@@ -300,8 +291,8 @@ mod tests {
         assert!(vault.par_have_duplicates_notes_by_name());
     }
 
-    #[cfg_attr(feature = "logging", test_log::test)]
-    #[cfg_attr(not(feature = "logging"), test)]
+    #[cfg_attr(feature = "tracing", tracing_test::traced_test)]
+    #[test]
     #[cfg(feature = "rayon")]
     fn par_without_duplicates_notes_by_name() {
         let (vault, _path) = create_vault_without_diplicates_files::<NoteInMemory>();
@@ -315,8 +306,8 @@ mod tests {
         assert_eq!(duplicated_notes.is_empty(), true);
         assert!(!vault.par_have_duplicates_notes_by_name());
     }
-    #[cfg_attr(feature = "logging", test_log::test)]
-    #[cfg_attr(not(feature = "logging"), test)]
+    #[cfg_attr(feature = "tracing", tracing_test::traced_test)]
+    #[test]
     #[cfg(feature = "digest")]
     fn with_duplicates_notes_by_content() {
         let (vault, _path) = create_vault_with_diplicates_files::<NoteInMemory>();
@@ -336,8 +327,8 @@ mod tests {
         );
     }
 
-    #[cfg_attr(feature = "logging", test_log::test)]
-    #[cfg_attr(not(feature = "logging"), test)]
+    #[cfg_attr(feature = "tracing", tracing_test::traced_test)]
+    #[test]
     #[cfg(feature = "digest")]
     fn without_duplicates_notes_by_content() {
         let (vault, _path) = create_vault_without_diplicates_files::<NoteInMemory>();

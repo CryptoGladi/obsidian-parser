@@ -87,8 +87,8 @@ pub trait Note: Sized {
 pub(crate) mod impl_tests {
     macro_rules! impl_test_for_note {
         ($name_test:ident, $fn_test:ident, $impl_note:path) => {
-            #[cfg_attr(feature = "logging", test_log::test)]
-            #[cfg_attr(not(feature = "logging"), test)]
+            #[cfg_attr(feature = "tracing", tracing_test::traced_test)]
+            #[test]
             fn $name_test() {
                 $fn_test::<$impl_note>().unwrap();
             }

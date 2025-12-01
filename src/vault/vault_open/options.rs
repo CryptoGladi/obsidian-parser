@@ -42,8 +42,8 @@ impl VaultOptions {
 mod tests {
     use super::*;
 
-    #[cfg_attr(feature = "logging", test_log::test)]
-    #[cfg_attr(not(feature = "logging"), test)]
+    #[cfg_attr(feature = "tracing", tracing_test::traced_test)]
+    #[test]
     fn new() {
         let path = PathBuf::from("path/to/vault");
         let options = VaultOptions::new(&path);
