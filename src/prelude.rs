@@ -1,5 +1,6 @@
 //! All prelude
 
+pub use crate::note::note_aliases::NoteAliases;
 pub use crate::note::note_in_memory::NoteInMemory;
 pub use crate::note::note_is_todo::NoteIsTodo;
 pub use crate::note::note_on_disk::NoteOnDisk;
