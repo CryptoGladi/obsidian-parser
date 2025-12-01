@@ -31,8 +31,8 @@ impl Index {
 mod tests {
     use super::*;
 
-    #[cfg_attr(feature = "logging", test_log::test)]
-    #[cfg_attr(not(feature = "logging"), test)]
+    #[cfg_attr(feature = "tracing", tracing_test::traced_test)]
+    #[test]
     #[cfg(feature = "petgraph")]
     fn insert_and_get() {
         let mut index = Index::default();
@@ -42,8 +42,8 @@ mod tests {
         assert_eq!(index.get("123/123"), Some(&NodeIndex::new(3)));
     }
 
-    #[cfg_attr(feature = "logging", test_log::test)]
-    #[cfg_attr(not(feature = "logging"), test)]
+    #[cfg_attr(feature = "tracing", tracing_test::traced_test)]
+    #[test]
     #[cfg(feature = "petgraph")]
     fn full() {
         let mut index = Index::default();

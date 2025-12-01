@@ -91,8 +91,8 @@ mod tests {
         vault::vault_test::create_files_for_vault,
     };
 
-    #[cfg_attr(feature = "logging", test_log::test)]
-    #[cfg_attr(not(feature = "logging"), test)]
+    #[cfg_attr(feature = "tracing", tracing_test::traced_test)]
+    #[test]
     fn notes() {
         let (path, files) = create_files_for_vault().unwrap();
 
@@ -106,8 +106,8 @@ mod tests {
         assert_eq!(vault.notes().len(), files.len());
     }
 
-    #[cfg_attr(feature = "logging", test_log::test)]
-    #[cfg_attr(not(feature = "logging"), test)]
+    #[cfg_attr(feature = "tracing", tracing_test::traced_test)]
+    #[test]
     fn count_notes() {
         let (path, files) = create_files_for_vault().unwrap();
 
@@ -121,8 +121,8 @@ mod tests {
         assert_eq!(vault.count_notes(), files.len());
     }
 
-    #[cfg_attr(feature = "logging", test_log::test)]
-    #[cfg_attr(not(feature = "logging"), test)]
+    #[cfg_attr(feature = "tracing", tracing_test::traced_test)]
+    #[test]
     fn path() {
         let (path, _) = create_files_for_vault().unwrap();
 

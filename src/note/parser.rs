@@ -79,8 +79,8 @@ pub fn parse_note(raw_text: &str) -> Result<ResultParse<'_>, Error> {
 mod tests {
     use super::{ResultParse, parse_note};
 
-    #[cfg_attr(feature = "logging", test_log::test)]
-    #[cfg_attr(not(feature = "logging"), test)]
+    #[cfg_attr(feature = "tracing", tracing_test::traced_test)]
+    #[test]
     fn parse_note_without_properties() {
         let test_data = "test_data";
         let result = parse_note(test_data).unwrap();
@@ -88,8 +88,8 @@ mod tests {
         assert_eq!(result, ResultParse::WithoutProperties);
     }
 
-    #[cfg_attr(feature = "logging", test_log::test)]
-    #[cfg_attr(not(feature = "logging"), test)]
+    #[cfg_attr(feature = "tracing", tracing_test::traced_test)]
+    #[test]
     fn parse_note_with_properties() {
         let test_data = "---\nproperties data\n---\ntest data";
         let result = parse_note(test_data).unwrap();
@@ -103,8 +103,8 @@ mod tests {
         );
     }
 
-    #[cfg_attr(feature = "logging", test_log::test)]
-    #[cfg_attr(not(feature = "logging"), test)]
+    #[cfg_attr(feature = "tracing", tracing_test::traced_test)]
+    #[test]
     fn parse_note_without_properties_but_with_closed() {
         let test_data1 = "test_data---";
         let test_data2 = "test_data\n---\n";
@@ -116,16 +116,16 @@ mod tests {
         assert_eq!(result2, ResultParse::WithoutProperties);
     }
 
-    #[cfg_attr(feature = "logging", test_log::test)]
-    #[cfg_attr(not(feature = "logging"), test)]
+    #[cfg_attr(feature = "tracing", tracing_test::traced_test)]
+    #[test]
     #[should_panic]
     fn parse_note_with_properties_but_without_closed() {
         let test_data = "---\nproperties data\ntest data";
         let _ = parse_note(test_data).unwrap();
     }
 
-    #[cfg_attr(feature = "logging", test_log::test)]
-    #[cfg_attr(not(feature = "logging"), test)]
+    #[cfg_attr(feature = "tracing", tracing_test::traced_test)]
+    #[test]
     fn parse_note_with_() {
         let test_data = "---properties data";
 
@@ -133,8 +133,8 @@ mod tests {
         assert_eq!(result, ResultParse::WithoutProperties);
     }
 
-    #[cfg_attr(feature = "logging", test_log::test)]
-    #[cfg_attr(not(feature = "logging"), test)]
+    #[cfg_attr(feature = "tracing", tracing_test::traced_test)]
+    #[test]
     fn parse_note_without_properties_but_with_spaces() {
         let test_data = "   ---\ndata";
 
@@ -142,8 +142,8 @@ mod tests {
         assert_eq!(result, ResultParse::WithoutProperties);
     }
 
-    #[cfg_attr(feature = "logging", test_log::test)]
-    #[cfg_attr(not(feature = "logging"), test)]
+    #[cfg_attr(feature = "tracing", tracing_test::traced_test)]
+    #[test]
     fn parse_note_with_properties_but_check_trim_end() {
         let test_data = "---\r\nproperties data\r\n---\r   \ntest data";
         let result = parse_note(test_data).unwrap();
@@ -157,8 +157,8 @@ mod tests {
         );
     }
 
-    #[cfg_attr(feature = "logging", test_log::test)]
-    #[cfg_attr(not(feature = "logging"), test)]
+    #[cfg_attr(feature = "tracing", tracing_test::traced_test)]
+    #[test]
     fn test_parse_links() {
         let test_data =
             "[[Note]] [[Note|Alias]] [[Note^block]] [[Note#Heading|Alias]] [[Note^block|Alias]]";

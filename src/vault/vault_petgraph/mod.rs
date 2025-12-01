@@ -22,7 +22,7 @@
 //! Enable [`petgraph`](https://docs.rs/petgraph/latest/petgraph) feature in Cargo.toml:
 //! ```toml
 //! [dependencies]
-//! obsidian-parser = { version = "0.8", features = ["petgraph"] }
+//! obsidian-parser = { version = "0.", features = ["petgraph"] }
 //! ```
 
 mod graph_builder;
@@ -42,12 +42,13 @@ where
     F: Note,
 {
     #[cfg_attr(docsrs, doc(cfg(feature = "petgraph")))]
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self), fields(path = %self.path.display(), count_notes = %self.notes.len())))]
     fn get_graph<Ty>(&self) -> Result<Graph<&F, (), Ty>, F::Error>
     where
         Ty: EdgeType,
     {
-        #[cfg(feature = "logging")]
-        log::debug!("Building graph");
+        #[cfg(feature = "tracing")]
+        tracing::debug!("Building graph");
 
         let graph_builder = GraphBuilder::new(self);
         graph_builder.build()
@@ -62,8 +63,8 @@ where
         F::Error: Send,
         Ty: EdgeType + Send,
     {
-        #[cfg(feature = "logging")]
-        log::debug!("Building graph with parallel");
+        #[cfg(feature = "tracing")]
+        tracing::debug!("Building graph with parallel");
 
         let graph_builder = GraphBuilder::new(self);
         graph_builder.par_build()
@@ -80,9 +81,10 @@ where
     /// # Other
     /// See [`get_ungraph`](Vault::get_ungraph)
     #[cfg_attr(docsrs, doc(cfg(feature = "petgraph")))]
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self), fields(path = %self.path.display(), count_notes = %self.notes.len())))]
     pub fn get_digraph(&self) -> Result<DiGraph<&F, ()>, F::Error> {
-        #[cfg(feature = "logging")]
-        log::debug!("Building directed graph");
+        #[cfg(feature = "tracing")]
+        tracing::debug!("Building directed graph");
 
         self.get_graph()
     }
@@ -100,13 +102,14 @@ where
     #[cfg_attr(docsrs, doc(cfg(feature = "petgraph")))]
     #[cfg_attr(docsrs, doc(cfg(feature = "rayon")))]
     #[cfg(feature = "rayon")]
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self), fields(path = %self.path.display(), count_notes = %self.notes.len())))]
     pub fn par_get_digraph(&self) -> Result<DiGraph<&F, ()>, F::Error>
     where
         F: Send + Sync,
         F::Error: Send,
     {
-        #[cfg(feature = "logging")]
-        log::debug!("Building directed graph");
+        #[cfg(feature = "tracing")]
+        tracing::debug!("Building directed graph");
 
         self.par_get_graph()
     }
@@ -115,9 +118,10 @@ where
     ///
     /// Useful for connectivity analysis where direction doesn't matter
     #[cfg_attr(docsrs, doc(cfg(feature = "petgraph")))]
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self), fields(path = %self.path.display(), count_notes = %self.notes.len())))]
     pub fn get_ungraph(&self) -> Result<UnGraph<&F, ()>, F::Error> {
-        #[cfg(feature = "logging")]
-        log::debug!("Building undirected graph");
+        #[cfg(feature = "tracing")]
+        tracing::debug!("Building undirected graph");
 
         self.get_graph()
     }
@@ -128,13 +132,14 @@ where
     #[cfg_attr(docsrs, doc(cfg(feature = "petgraph")))]
     #[cfg_attr(docsrs, doc(cfg(feature = "rayon")))]
     #[cfg(feature = "rayon")]
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self), fields(path = %self.path.display(), count_notes = %self.notes.len())))]
     pub fn par_get_ungraph(&self) -> Result<UnGraph<&F, ()>, F::Error>
     where
         F: Send + Sync,
         F::Error: Send,
     {
-        #[cfg(feature = "logging")]
-        log::debug!("Building undirected graph");
+        #[cfg(feature = "tracing")]
+        tracing::debug!("Building undirected graph");
 
         self.par_get_graph()
     }
@@ -144,8 +149,8 @@ where
 mod tests {
     use crate::vault::vault_test::create_test_vault;
 
-    #[cfg_attr(feature = "logging", test_log::test)]
-    #[cfg_attr(not(feature = "logging"), test)]
+    #[cfg_attr(feature = "tracing", tracing_test::traced_test)]
+    #[test]
     #[cfg(feature = "petgraph")]
     fn get_digraph() {
         let (vault, _temp_dir, files) = create_test_vault().unwrap();
@@ -156,8 +161,8 @@ mod tests {
         assert_eq!(graph.node_count(), files.len());
     }
 
-    #[cfg_attr(feature = "logging", test_log::test)]
-    #[cfg_attr(not(feature = "logging"), test)]
+    #[cfg_attr(feature = "tracing", tracing_test::traced_test)]
+    #[test]
     #[cfg(feature = "petgraph")]
     #[cfg(feature = "rayon")]
     fn par_get_digraph() {
@@ -169,8 +174,8 @@ mod tests {
         assert_eq!(graph.node_count(), files.len());
     }
 
-    #[cfg_attr(feature = "logging", test_log::test)]
-    #[cfg_attr(not(feature = "logging"), test)]
+    #[cfg_attr(feature = "tracing", tracing_test::traced_test)]
+    #[test]
     #[cfg(feature = "petgraph")]
     #[cfg(feature = "rayon")]
     fn par_get_ungraph() {

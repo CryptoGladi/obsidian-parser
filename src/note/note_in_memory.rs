@@ -153,19 +153,20 @@ where
     /// assert_eq!(properties.title, "Example");
     /// assert_eq!(note.content().unwrap(), "Content");
     /// ```
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip_all))]
     fn from_string(raw_text: impl AsRef<str>) -> Result<Self, Self::Error> {
         let raw_text = raw_text.as_ref();
 
-        #[cfg(feature = "logging")]
-        log::trace!("Parsing in-memory note");
+        #[cfg(feature = "tracing")]
+        tracing::trace!("Parsing in-memory note");
 
         match parse_note(raw_text)? {
             ResultParse::WithProperties {
                 content,
                 properties,
             } => {
-                #[cfg(feature = "logging")]
-                log::trace!("Frontmatter detected, parsing properties");
+                #[cfg(feature = "tracing")]
+                tracing::trace!("Frontmatter detected, parsing properties");
 
                 Ok(Self {
                     content: content.to_string(),
@@ -174,8 +175,8 @@ where
                 })
             }
             ResultParse::WithoutProperties => {
-                #[cfg(feature = "logging")]
-                log::trace!("No frontmatter found, storing raw content");
+                #[cfg(feature = "tracing")]
+                tracing::trace!("No frontmatter found, storing raw content");
 
                 Ok(Self {
                     content: raw_text.to_string(),
@@ -192,11 +193,12 @@ impl<T> crate::prelude::NoteFromFile for NoteInMemory<T>
 where
     T: DeserializeOwned + Clone,
 {
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip_all, fields(path = %path.as_ref().display())))]
     fn from_file(path: impl AsRef<Path>) -> Result<Self, Self::Error> {
         let path_buf = path.as_ref().to_path_buf();
 
-        #[cfg(feature = "logging")]
-        log::trace!("Parse obsidian file from file: {}", path_buf.display());
+        #[cfg(feature = "tracing")]
+        tracing::trace!("Parse obsidian file from file");
 
         let mut file = File::open(&path_buf)?;
         let mut note = Self::from_reader(&mut file)?;
@@ -210,6 +212,8 @@ where
 mod tests {
     use super::*;
     use crate::note::{
+        note_aliases::tests::impl_all_tests_aliases,
+        note_is_todo::tests::impl_all_tests_is_todo,
         note_read::tests::{
             impl_all_tests_from_file, impl_all_tests_from_reader, impl_all_tests_from_string,
         },
@@ -220,4 +224,6 @@ mod tests {
     impl_all_tests_from_string!(NoteInMemory);
     impl_all_tests_from_file!(NoteInMemory);
     impl_all_tests_flush!(NoteInMemory);
+    impl_all_tests_is_todo!(NoteInMemory);
+    impl_all_tests_aliases!(NoteInMemory);
 }

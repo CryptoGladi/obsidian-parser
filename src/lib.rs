@@ -17,7 +17,7 @@
 //! Add to `Cargo.toml`:
 //! ```toml
 //! [dependencies]
-//! obsidian-parser = { version = "0.8", features = ["petgraph", "rayon", "digest"] }
+//! obsidian-parser = { version = "0.9", features = ["petgraph", "rayon", "digest"] }
 //! ```
 //!
 //! ## Examples
@@ -29,6 +29,8 @@
 //!
 //! // Parse single file with `HashMap`
 //! let note_hashmap = NoteInMemory::from_file_default("note.md").unwrap();
+//!
+//! assert!(!note_hashmap.is_todo().unwrap());
 //!
 //! println!("Content: {}", note_hashmap.content().unwrap());
 //! println!("Properties: {:#?}", note_hashmap.properties().unwrap().unwrap());

@@ -23,8 +23,8 @@ where
     where
         Ty: EdgeType,
     {
-        #[cfg(feature = "logging")]
-        log::debug!(
+        #[cfg(feature = "tracing")]
+        tracing::debug!(
             "Building graph for vault: {} ({} notes)",
             self.vault.path.display(),
             self.vault.count_notes()
@@ -33,8 +33,8 @@ where
         let (index, mut graph) = self.create_index_with_graph();
         self.create_edges(&index, &mut graph)?;
 
-        #[cfg(feature = "logging")]
-        log::debug!("Graph construction complete. Edges: {}", graph.edge_count());
+        #[cfg(feature = "tracing")]
+        tracing::debug!("Graph construction complete. Edges: {}", graph.edge_count());
 
         Ok(graph)
     }
@@ -46,8 +46,8 @@ where
         F::Error: Send,
         Ty: EdgeType + Send,
     {
-        #[cfg(feature = "logging")]
-        log::debug!(
+        #[cfg(feature = "tracing")]
+        tracing::debug!(
             "Building graph for vault: {} ({} notes)",
             self.vault.path.display(),
             self.vault.count_notes()
@@ -56,8 +56,8 @@ where
         let (index, mut graph) = self.create_index_with_graph();
         self.par_create_edges(&index, &mut graph)?;
 
-        #[cfg(feature = "logging")]
-        log::debug!("Graph construction complete. Edges: {}", graph.edge_count());
+        #[cfg(feature = "tracing")]
+        tracing::debug!("Graph construction complete. Edges: {}", graph.edge_count());
 
         Ok(graph)
     }
@@ -89,8 +89,8 @@ where
     where
         Ty: EdgeType,
     {
-        #[cfg(feature = "logging")]
-        log::debug!("Creating index...");
+        #[cfg(feature = "tracing")]
+        tracing::debug!("Creating index...");
 
         let mut graph = Graph::default();
         let mut index = Index::default();
@@ -107,8 +107,8 @@ where
             index.insert(full, short, node);
         }
 
-        #[cfg(feature = "logging")]
-        log::debug!("Done create index for {} notes", self.vault.count_notes());
+        #[cfg(feature = "tracing")]
+        tracing::debug!("Done create index for {} notes", self.vault.count_notes());
 
         (index, graph)
     }
@@ -132,8 +132,8 @@ where
 
         const CHUNK_SIZE: usize = 10;
 
-        #[cfg(feature = "logging")]
-        log::debug!("Using parallel edge builder (rayon enabled)");
+        #[cfg(feature = "tracing")]
+        tracing::debug!("Using parallel edge builder (rayon enabled)");
 
         #[allow(clippy::items_after_statements)]
         enum Data<'a, E: Send> {
@@ -201,8 +201,8 @@ where
     where
         Ty: EdgeType,
     {
-        #[cfg(feature = "logging")]
-        log::debug!("Using sequential edge builder");
+        #[cfg(feature = "tracing")]
+        tracing::debug!("Using sequential edge builder");
 
         for file in self.vault.notes() {
             let path = Self::relative_path(file, &self.vault.path);

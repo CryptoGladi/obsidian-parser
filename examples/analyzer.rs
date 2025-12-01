@@ -2,7 +2,9 @@ use clap::Parser;
 use obsidian_parser::{prelude::*, vault::vault_open::VaultBuilder};
 use petgraph::algo::connected_components;
 use rayon::prelude::*;
+use sha2::Sha256;
 use std::{path::PathBuf, time::Instant};
+use tracing_subscriber::EnvFilter;
 
 fn parse_path(s: &str) -> Result<PathBuf, String> {
     let path = PathBuf::from(s);
@@ -22,29 +24,42 @@ struct Args {
 }
 
 fn main() {
-    env_logger::init();
+    tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_default_env())
+        .init();
+
     let args = Args::parse();
 
     let open_vault = Instant::now();
     let options = VaultOptions::new(&args.path);
     let files = VaultBuilder::new(&options)
         .include_hidden(false)
-        .into_par_iter()
+        .into_par_iter::<NoteOnceLock>()
         .filter_map(|note| match note {
             Ok(note) => Some(note),
             Err(error) => {
                 eprintln!("Parsed error: {}", error);
                 None
             }
-        });
+        })
+        .filter(|note| {
+            let content = note.content().unwrap();
+            !content.is_empty()
+        })
+        .filter(|note| !note.is_todo().unwrap());
 
     let vault: VaultOnceLock = files.build_vault(&options);
     println!("Time open vault: {:.2?}", open_vault.elapsed());
     println!("Count notes: {}", vault.count_notes());
 
     println!(
-        "Check unique note name: {}",
-        !vault.par_have_duplicates_notes_by_name()
+        "Check unique note name by name: {}",
+        !vault.have_duplicates_notes_by_name()
+    );
+
+    println!(
+        "Check unique note name by content: {}",
+        !vault.have_duplicates_notes_by_content::<Sha256>().unwrap()
     );
 
     let word_count: usize = vault

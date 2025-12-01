@@ -98,9 +98,10 @@ where
     /// - [`Error::Yaml`] if properties can't be deserialized
     /// - [`Error::IsNotFile`] If file doesn't exist
     /// - [`Error::IO`] on filesystem error
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self), fields(path = %self.path.display())))]
     fn properties(&self) -> Result<Option<Cow<'_, T>>, Error> {
-        #[cfg(feature = "logging")]
-        log::trace!("Get properties from file: `{}`", self.path.display());
+        #[cfg(feature = "tracing")]
+        tracing::trace!("Get properties from file");
 
         if let Some(properties) = self.properties.get() {
             return Ok(properties.as_ref().map(|value| Cow::Borrowed(value)));
@@ -116,14 +117,14 @@ where
                 content: _,
                 properties,
             } => {
-                #[cfg(feature = "logging")]
-                log::trace!("Frontmatter detected, parsing properties");
+                #[cfg(feature = "tracing")]
+                tracing::trace!("Frontmatter detected, parsing properties");
 
                 Some(serde_yml::from_str(properties)?)
             }
             ResultParse::WithoutProperties => {
-                #[cfg(feature = "logging")]
-                log::trace!("No frontmatter found, storing raw content");
+                #[cfg(feature = "tracing")]
+                tracing::trace!("No frontmatter found, storing raw content");
 
                 None
             }
@@ -144,9 +145,10 @@ where
     /// - Large files where in-memory storage is prohibitive
     ///
     /// For repeated access, consider caching or [`NoteInMemory`](crate::note::note_in_memory::NoteInMemory).
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(self), fields(path = %self.path.display())))]
     fn content(&self) -> Result<Cow<'_, str>, Error> {
-        #[cfg(feature = "logging")]
-        log::trace!("Get content from file: `{}`", self.path.display());
+        #[cfg(feature = "tracing")]
+        tracing::trace!("Get content from file");
 
         if let Some(content) = self.content.get() {
             return Ok(Cow::Borrowed(content));
@@ -162,14 +164,14 @@ where
                 content,
                 properties: _,
             } => {
-                #[cfg(feature = "logging")]
-                log::trace!("Frontmatter detected, parsing properties");
+                #[cfg(feature = "tracing")]
+                tracing::trace!("Frontmatter detected, parsing properties");
 
                 content.to_string()
             }
             ResultParse::WithoutProperties => {
-                #[cfg(feature = "logging")]
-                log::trace!("No frontmatter found, storing raw content");
+                #[cfg(feature = "tracing")]
+                tracing::trace!("No frontmatter found, storing raw content");
 
                 raw_text
             }
@@ -223,6 +225,8 @@ mod tests {
     use super::*;
     use crate::note::NoteDefault;
     use crate::note::impl_tests::impl_test_for_note;
+    use crate::note::note_aliases::tests::{from_file_have_aliases, from_file_have_not_aliases};
+    use crate::note::note_is_todo::tests::{from_file_is_not_todo, from_file_is_todo};
     use crate::note::note_read::tests::{from_file, from_file_with_unicode};
     use crate::note::note_write::tests::impl_all_tests_flush;
     use std::io::Write;
@@ -237,8 +241,26 @@ mod tests {
         NoteOnceCell
     );
 
-    #[cfg_attr(feature = "logging", test_log::test)]
-    #[cfg_attr(not(feature = "logging"), test)]
+    impl_test_for_note!(impl_from_file_is_todo, from_file_is_todo, NoteOnceCell);
+    impl_test_for_note!(
+        impl_from_file_is_not_todo,
+        from_file_is_not_todo,
+        NoteOnceCell
+    );
+
+    impl_test_for_note!(
+        impl_from_file_have_aliases,
+        from_file_have_aliases,
+        NoteOnceCell
+    );
+    impl_test_for_note!(
+        impl_from_file_have_not_aliases,
+        from_file_have_not_aliases,
+        NoteOnceCell
+    );
+
+    #[cfg_attr(feature = "tracing", tracing_test::traced_test)]
+    #[test]
     #[should_panic]
     fn use_from_file_with_path_not_file() {
         let temp_dir = tempfile::tempdir().unwrap();
@@ -246,8 +268,8 @@ mod tests {
         NoteOnceCell::from_file_default(temp_dir.path()).unwrap();
     }
 
-    #[cfg_attr(feature = "logging", test_log::test)]
-    #[cfg_attr(not(feature = "logging"), test)]
+    #[cfg_attr(feature = "tracing", tracing_test::traced_test)]
+    #[test]
     fn get_path() {
         let test_file = NamedTempFile::new().unwrap();
         let file = NoteOnceCell::from_file_default(test_file.path()).unwrap();
@@ -256,8 +278,8 @@ mod tests {
         assert_eq!(file.path, test_file.path());
     }
 
-    #[cfg_attr(feature = "logging", test_log::test)]
-    #[cfg_attr(not(feature = "logging"), test)]
+    #[cfg_attr(feature = "tracing", tracing_test::traced_test)]
+    #[test]
     fn get_content() {
         let test_data = "DATA";
         let mut test_file = NamedTempFile::new().unwrap();
@@ -267,8 +289,8 @@ mod tests {
         assert_eq!(file.content().unwrap(), test_data);
     }
 
-    #[cfg_attr(feature = "logging", test_log::test)]
-    #[cfg_attr(not(feature = "logging"), test)]
+    #[cfg_attr(feature = "tracing", tracing_test::traced_test)]
+    #[test]
     fn get_properties() {
         let test_data = "---\ntime: now\n---\nDATA";
         let mut test_file = NamedTempFile::new().unwrap();

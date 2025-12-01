@@ -186,13 +186,10 @@ impl<N> Vault<N>
 where
     N: Note,
 {
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip(notes), fields(count_notes = notes.len())))]
     fn impl_build_vault(notes: Vec<N>, options: VaultOptions) -> Self {
-        #[cfg(feature = "logging")]
-        log::debug!(
-            "Building vault for {:?} with {} files",
-            options,
-            notes.len()
-        );
+        #[cfg(feature = "tracing")]
+        tracing::debug!("Building vault...");
 
         Self {
             notes,
@@ -308,8 +305,8 @@ mod tests {
             .build_vault(&options)
     }
 
-    #[cfg_attr(feature = "logging", test_log::test)]
-    #[cfg_attr(not(feature = "logging"), test)]
+    #[cfg_attr(feature = "tracing", tracing_test::traced_test)]
+    #[test]
     fn open() {
         let (path, vault_notes) = create_files_for_vault().unwrap();
 
@@ -319,8 +316,8 @@ mod tests {
         assert_eq!(vault.path(), path.path());
     }
 
-    #[cfg_attr(feature = "logging", test_log::test)]
-    #[cfg_attr(not(feature = "logging"), test)]
+    #[cfg_attr(feature = "tracing", tracing_test::traced_test)]
+    #[test]
     #[cfg(feature = "rayon")]
     fn par_open() {
         let (path, vault_notes) = create_files_for_vault().unwrap();
@@ -331,8 +328,8 @@ mod tests {
         assert_eq!(vault.path(), path.path());
     }
 
-    #[cfg_attr(feature = "logging", test_log::test)]
-    #[cfg_attr(not(feature = "logging"), test)]
+    #[cfg_attr(feature = "tracing", tracing_test::traced_test)]
+    #[test]
     fn ignore_not_md_files() {
         let (path, vault_notes) = create_files_for_vault().unwrap();
         File::create(path.path().join("extra_file.not_md")).unwrap();
@@ -343,8 +340,8 @@ mod tests {
         assert_eq!(vault.path(), path.path());
     }
 
-    #[cfg_attr(feature = "logging", test_log::test)]
-    #[cfg_attr(not(feature = "logging"), test)]
+    #[cfg_attr(feature = "tracing", tracing_test::traced_test)]
+    #[test]
     #[cfg(feature = "rayon")]
     fn par_ignore_not_md_files() {
         let (path, vault_notes) = create_files_for_vault().unwrap();
@@ -356,8 +353,8 @@ mod tests {
         assert_eq!(vault.path(), path.path());
     }
 
-    #[cfg_attr(feature = "logging", test_log::test)]
-    #[cfg_attr(not(feature = "logging"), test)]
+    #[cfg_attr(feature = "tracing", tracing_test::traced_test)]
+    #[test]
     fn open_with_error() {
         let (path, _) = create_files_for_vault().unwrap();
         let mut file = File::create(path.path().join("not_file.md")).unwrap();
@@ -376,8 +373,8 @@ mod tests {
         ));
     }
 
-    #[cfg_attr(feature = "logging", test_log::test)]
-    #[cfg_attr(not(feature = "logging"), test)]
+    #[cfg_attr(feature = "tracing", tracing_test::traced_test)]
+    #[test]
     #[cfg(feature = "rayon")]
     fn par_open_with_error() {
         use rayon::prelude::*;
@@ -399,8 +396,8 @@ mod tests {
         ));
     }
 
-    #[cfg_attr(feature = "logging", test_log::test)]
-    #[cfg_attr(not(feature = "logging"), test)]
+    #[cfg_attr(feature = "tracing", tracing_test::traced_test)]
+    #[test]
     fn open_with_error_but_ignored() {
         let (path, vault_notes) = create_files_for_vault().unwrap();
         let mut file = File::create(path.path().join("not_file.md")).unwrap();
@@ -431,8 +428,8 @@ mod tests {
         ));
     }
 
-    #[cfg_attr(feature = "logging", test_log::test)]
-    #[cfg_attr(not(feature = "logging"), test)]
+    #[cfg_attr(feature = "tracing", tracing_test::traced_test)]
+    #[test]
     #[cfg(feature = "rayon")]
     fn par_open_with_error_but_ignored() {
         use rayon::prelude::*;
@@ -467,8 +464,8 @@ mod tests {
         ));
     }
 
-    #[cfg_attr(feature = "logging", test_log::test)]
-    #[cfg_attr(not(feature = "logging"), test)]
+    #[cfg_attr(feature = "tracing", tracing_test::traced_test)]
+    #[test]
     fn include_hidden() {
         let (path, files) = create_files_for_vault().unwrap();
 
@@ -493,8 +490,8 @@ mod tests {
         assert_eq!(vault_without_hidden.count_notes(), files.len());
     }
 
-    #[cfg_attr(feature = "logging", test_log::test)]
-    #[cfg_attr(not(feature = "logging"), test)]
+    #[cfg_attr(feature = "tracing", tracing_test::traced_test)]
+    #[test]
     fn max_depth() {
         let (path, _) = create_files_for_vault().unwrap();
 
@@ -508,8 +505,8 @@ mod tests {
         assert_eq!(vault.count_notes(), 2);
     }
 
-    #[cfg_attr(feature = "logging", test_log::test)]
-    #[cfg_attr(not(feature = "logging"), test)]
+    #[cfg_attr(feature = "tracing", tracing_test::traced_test)]
+    #[test]
     fn min_depth() {
         let (path, _) = create_files_for_vault().unwrap();
 
@@ -523,8 +520,8 @@ mod tests {
         assert_eq!(vault.count_notes(), 1);
     }
 
-    #[cfg_attr(feature = "logging", test_log::test)]
-    #[cfg_attr(not(feature = "logging"), test)]
+    #[cfg_attr(feature = "tracing", tracing_test::traced_test)]
+    #[test]
     fn filter_entry() {
         let (path, _) = create_files_for_vault().unwrap();
 
