@@ -25,7 +25,7 @@ where
 {
     #[cfg_attr(feature = "tracing", tracing::instrument(skip(self), ret, fields(path = format!("{:?}", self.path()))))]
     fn is_todo(&self) -> Result<bool, N::Error> {
-        if self.content()?.contains("todo") {
+        if self.content()?.contains("#todo") {
             #[cfg(feature = "tracing")]
             tracing::trace!("Found todo in content");
 
@@ -55,7 +55,7 @@ pub(crate) mod tests {
     use std::io::{Cursor, Write};
     use tempfile::NamedTempFile;
 
-    const TEST_DATA_HAVE: &str = "---\ntags:\n- todo\n---\nSameData";
+    const TEST_DATA_HAVE: &str = "---\ntags:\n- todo\n---\nSameData todo";
     const TEST_DATA_NOT_HAVE: &str = "---\ntags:\n- not_todo\n---\nSameData";
 
     fn is_todo<N>(note: &N) -> Result<(), N::Error>
