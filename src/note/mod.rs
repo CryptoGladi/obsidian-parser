@@ -83,6 +83,42 @@ pub trait Note: Sized {
                 .to_string()
         })
     }
+
+    /// Get count words from content
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use obsidian_parser::prelude::*;
+    ///
+    /// let data = "---\ntags:\n- my_tag\n---\n My super note";
+    /// let note = NoteInMemory::from_string_default(data).unwrap();
+    ///
+    /// assert_eq!(note.count_words_from_content().unwrap(), 3);
+    /// ```
+    fn count_words_from_content(&self) -> Result<usize, Self::Error> {
+        let content = self.content()?;
+        Ok(content.split_whitespace().count())
+    }
+
+    /// Get count symbols from content
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use obsidian_parser::prelude::*;
+    ///
+    /// let data = "---\ntags:\n- my_tag\n---\n My super note";
+    /// let content = "My super note";
+    ///
+    /// let note = NoteInMemory::from_string_default(data).unwrap();
+    ///
+    /// assert_eq!(note.count_symbols_from_content().unwrap(), content.len());
+    /// ``````
+    fn count_symbols_from_content(&self) -> Result<usize, Self::Error> {
+        let content = self.content()?;
+        Ok(content.len())
+    }
 }
 
 #[cfg(test)]

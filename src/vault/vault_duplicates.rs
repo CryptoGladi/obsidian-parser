@@ -80,7 +80,7 @@ where
 
         let mut duplicated_notes = Vec::new();
         let mut viewed = HashSet::new();
-        for (note, hash_content) in self.notes().into_iter().zip(hashed) {
+        for (note, hash_content) in self.notes().iter().zip(hashed) {
             let already_have = !viewed.insert(hash_content);
 
             if already_have {
