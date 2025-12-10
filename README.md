@@ -28,6 +28,7 @@ use serde::Deserialize;
 let note_hashmap = NoteInMemory::from_file_default("note.md").unwrap();
 println!("Content: {}", note_hashmap.content().unwrap());
 println!("Properties: {:#?}", note_hashmap.properties().unwrap().unwrap());
+println!("Tags: {:?}", note_hashmap.tags().unwrap());
 
 // Parse single file with custom struct
 #[derive(Clone, Deserialize)]

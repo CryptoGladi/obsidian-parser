@@ -1,6 +1,7 @@
 //! Impl trait [`NoteIsTodo`]
 
-use super::{DefaultProperties, Note};
+use super::Note;
+use crate::prelude::NoteTags;
 
 /// Trait for check note is marked todo
 pub trait NoteIsTodo: Note {
@@ -20,31 +21,12 @@ pub trait NoteIsTodo: Note {
 
 impl<N> NoteIsTodo for N
 where
-    N: Note<Properties = DefaultProperties>,
-    N::Error: From<serde_yml::Error>,
+    N: NoteTags,
 {
     #[cfg_attr(feature = "tracing", tracing::instrument(skip(self), ret, fields(path = format!("{:?}", self.path()))))]
     fn is_todo(&self) -> Result<bool, N::Error> {
-        if self.content()?.contains("#todo") {
-            #[cfg(feature = "tracing")]
-            tracing::trace!("Found todo in content");
-
-            return Ok(true);
-        }
-
-        let properties = self.properties()?.unwrap_or_default();
-        if let Some(value) = properties.get("tags") {
-            let tags: Vec<String> = serde_yml::from_value(value.clone())?;
-
-            if tags.contains(&"todo".to_string()) {
-                #[cfg(feature = "tracing")]
-                tracing::trace!("Found todo in properties");
-
-                return Ok(true);
-            }
-        }
-
-        Ok(false)
+        let tags = self.tags()?;
+        Ok(tags.contains(&"todo".to_string()))
     }
 }
 
@@ -52,6 +34,7 @@ where
 pub(crate) mod tests {
     use super::*;
     use crate::note::{NoteFromFile, NoteFromReader, NoteFromString};
+    use serde::de::DeserializeOwned;
     use std::io::{Cursor, Write};
     use tempfile::NamedTempFile;
 
@@ -60,8 +43,7 @@ pub(crate) mod tests {
 
     fn is_todo<N>(note: &N) -> Result<(), N::Error>
     where
-        N: Note<Properties = DefaultProperties>,
-        N::Error: From<serde_yml::Error>,
+        N: NoteTags,
     {
         assert!(note.is_todo()?);
         Ok(())
@@ -69,8 +51,7 @@ pub(crate) mod tests {
 
     fn is_not_todo<N>(note: &N) -> Result<(), N::Error>
     where
-        N: Note<Properties = DefaultProperties>,
-        N::Error: From<serde_yml::Error>,
+        N: NoteTags,
     {
         assert!(!note.is_todo()?);
         Ok(())
@@ -78,8 +59,8 @@ pub(crate) mod tests {
 
     pub(crate) fn from_string_is_todo<N>() -> Result<(), N::Error>
     where
-        N: NoteFromString<Properties = DefaultProperties>,
-        N::Error: From<serde_yml::Error>,
+        N: NoteFromString + NoteTags,
+        N::Properties: DeserializeOwned,
     {
         let note = N::from_string(TEST_DATA_HAVE)?;
         is_todo(&note)
@@ -87,8 +68,8 @@ pub(crate) mod tests {
 
     pub(crate) fn from_string_is_not_todo<N>() -> Result<(), N::Error>
     where
-        N: NoteFromString<Properties = DefaultProperties>,
-        N::Error: From<serde_yml::Error>,
+        N: NoteFromString + NoteTags,
+        N::Properties: DeserializeOwned,
     {
         let note = N::from_string(TEST_DATA_NOT_HAVE)?;
         is_not_todo(&note)
@@ -96,8 +77,9 @@ pub(crate) mod tests {
 
     pub(crate) fn from_reader_is_todo<N>() -> Result<(), N::Error>
     where
-        N: NoteFromReader<Properties = DefaultProperties>,
-        N::Error: From<serde_yml::Error> + From<std::io::Error>,
+        N: NoteFromReader + NoteTags,
+        N::Properties: DeserializeOwned,
+        N::Error: From<std::io::Error>,
     {
         let note = N::from_reader(&mut Cursor::new(TEST_DATA_HAVE))?;
         is_todo(&note)
@@ -105,8 +87,9 @@ pub(crate) mod tests {
 
     pub(crate) fn from_reader_is_not_todo<N>() -> Result<(), N::Error>
     where
-        N: NoteFromReader<Properties = DefaultProperties>,
-        N::Error: From<serde_yml::Error> + From<std::io::Error>,
+        N: NoteFromReader + NoteTags,
+        N::Properties: DeserializeOwned,
+        N::Error: From<std::io::Error>,
     {
         let note = N::from_reader(&mut Cursor::new(TEST_DATA_NOT_HAVE))?;
         is_not_todo(&note)
@@ -114,8 +97,9 @@ pub(crate) mod tests {
 
     pub(crate) fn from_file_is_todo<N>() -> Result<(), N::Error>
     where
-        N: NoteFromFile<Properties = DefaultProperties>,
-        N::Error: From<serde_yml::Error> + From<std::io::Error>,
+        N: NoteFromFile + NoteTags,
+        N::Properties: DeserializeOwned,
+        N::Error: From<std::io::Error>,
     {
         let mut file = NamedTempFile::new().unwrap();
         file.write_all(TEST_DATA_HAVE.as_bytes()).unwrap();
@@ -126,8 +110,9 @@ pub(crate) mod tests {
 
     pub(crate) fn from_file_is_not_todo<N>() -> Result<(), N::Error>
     where
-        N: NoteFromFile<Properties = DefaultProperties>,
-        N::Error: From<serde_yml::Error> + From<std::io::Error>,
+        N: NoteFromFile + NoteTags,
+        N::Properties: DeserializeOwned,
+        N::Error: From<std::io::Error>,
     {
         let mut file = NamedTempFile::new().unwrap();
         file.write_all(TEST_DATA_NOT_HAVE.as_bytes()).unwrap();

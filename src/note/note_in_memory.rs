@@ -217,9 +217,11 @@ mod tests {
         note_read::tests::{
             impl_all_tests_from_file, impl_all_tests_from_reader, impl_all_tests_from_string,
         },
+        note_tags::tests::impl_all_tests_tags,
         note_write::tests::impl_all_tests_flush,
     };
 
+    impl_all_tests_tags!(NoteInMemory);
     impl_all_tests_from_reader!(NoteInMemory);
     impl_all_tests_from_string!(NoteInMemory);
     impl_all_tests_from_file!(NoteInMemory);

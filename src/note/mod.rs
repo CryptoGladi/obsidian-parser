@@ -8,6 +8,7 @@ pub mod note_on_disk;
 pub mod note_once_cell;
 pub mod note_once_lock;
 pub mod note_read;
+pub mod note_tags;
 pub mod parser;
 
 #[cfg(not(target_family = "wasm"))]
