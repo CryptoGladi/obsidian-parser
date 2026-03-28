@@ -2,7 +2,7 @@
   description = "A devShell for obsidian-parser";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
     rust-overlay.url = "github:oxalica/rust-overlay";
     flake-utils.url = "github:numtide/flake-utils";
   };
@@ -26,6 +26,8 @@
             "rust-src"
             "rust-analyzer"
           ];
+
+          targets = [ "wasm32-unknown-unknown" ];
         };
       in
       {

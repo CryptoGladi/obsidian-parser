@@ -1,6 +1,6 @@
 use criterion::{Criterion, criterion_group, criterion_main};
 use obsidian_parser::prelude::*;
-use rand::Rng;
+use rand::RngExt;
 use serde::{Deserialize, Serialize};
 use std::hint::black_box;
 use std::io::Write;

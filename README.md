@@ -7,6 +7,7 @@
 Blazingly fast Rust library for parsing and analyzing [Obsidian](https://obsidian.md) vaults.
 ## Features
 - ⚡ **High Performance**: Parses 1000+ notes in under 3ms
+- 🛡️ 100% Safe Rust - Strictly forbids unsafe code (`#![forbid(unsafe_code)]`)
 - 🧠 **Knowledge Graphs**: Built-in integration with [`petgraph`](https://docs.rs/petgraph/latest/petgraph) for advanced analysis
 - 🧩 **Flexible API**: Supports both in-memory and on-disk note representations
 - 🔍 **Frontmatter Parsing**: Extract YAML properties with [`serde`](https://docs.rs/serde/latest/serde) compatibility

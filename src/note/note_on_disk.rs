@@ -112,10 +112,7 @@ where
         #[cfg(feature = "tracing")]
         tracing::trace!("Get properties from file");
 
-        let data = std::fs::read(&self.path)?;
-
-        // SAFETY: Notes files in Obsidian (`*.md`) ensure that the file is encoded in UTF-8
-        let raw_text = unsafe { String::from_utf8_unchecked(data) };
+        let raw_text = std::fs::read_to_string(&self.path)?;
 
         let result = match parse_note(&raw_text)? {
             ResultParse::WithProperties {
@@ -154,10 +151,7 @@ where
         #[cfg(feature = "tracing")]
         tracing::trace!("Get content from file");
 
-        let data = std::fs::read(&self.path)?;
-
-        // SAFETY: Notes files in Obsidian (`*.md`) ensure that the file is encoded in UTF-8
-        let raw_text = unsafe { String::from_utf8_unchecked(data) };
+        let raw_text = std::fs::read_to_string(&self.path)?;
 
         let result = match parse_note(&raw_text)? {
             ResultParse::WithProperties {

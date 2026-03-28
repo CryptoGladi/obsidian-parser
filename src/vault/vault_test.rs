@@ -36,6 +36,7 @@ pub(crate) fn create_files_for_vault() -> Result<(TempDir, Vec<File>), std::io::
 }
 
 /// Create test [`Vault`]
+#[allow(dead_code)]
 pub(crate) fn create_test_vault() -> Result<(Vault, TempDir, Vec<File>), std::io::Error> {
     let (path, files) = create_files_for_vault()?;
 

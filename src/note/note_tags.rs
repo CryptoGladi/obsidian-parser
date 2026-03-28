@@ -44,7 +44,7 @@ where
         let tags_from_content: Vec<_> = content
             .split_whitespace()
             .filter(|word| word.starts_with('#'))
-            .filter(|word| word.bytes().nth(1) != Some(b'#'))
+            .filter(|word| word.as_bytes().get(1) != Some(&b'#'))
             .map(|word| word[1..].to_string())
             .filter_map(|tag| {
                 let end_index = tag.find(|c| !check_good(c)).unwrap_or(tag.len());

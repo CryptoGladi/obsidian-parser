@@ -37,13 +37,10 @@ where
         #[cfg(feature = "tracing")]
         tracing::trace!("Parse obsidian file from reader");
 
-        let mut data = Vec::new();
-        read.read_to_end(&mut data)?;
+        let mut buf = String::new();
+        read.read_to_string(&mut buf)?;
 
-        // SAFETY: Notes files in Obsidian (`*.md`) ensure that the file is encoded in UTF-8
-        let text = unsafe { String::from_utf8_unchecked(data) };
-
-        Self::from_string(&text)
+        Self::from_string(&buf)
     }
 }
 
