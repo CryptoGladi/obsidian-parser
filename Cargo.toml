@@ -13,7 +13,7 @@ categories = ["parser-implementations", "data-structures"]
 serde = { version = "1", features = ["derive"] }
 thiserror = "2"
 walkdir = "2.5"
-serde_yml = "0.0.12"
+serde_yml = "0.0.13"
 unic-emoji-char = "0.9"
 petgraph = { version = "0.8", optional = true }
 rayon = { version = "1", optional = true }
